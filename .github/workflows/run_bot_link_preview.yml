@@ -46,5 +46,6 @@ jobs:
           SOURCE_CHANNEL_IDS: ${{ secrets.SOURCE_CHANNEL_IDS }}
           TARGET_CHANNEL_ID: ${{ secrets.TARGET_CHANNEL_ID }}
           TARGET_PREVIEW_ID: ${{ secrets.TARGET_PREVIEW_ID }}
+          PYTHONUNBUFFERED: "1"
         run: |
           python server.py

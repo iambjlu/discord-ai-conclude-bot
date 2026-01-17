@@ -1,4 +1,5 @@
 import sys
+sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
 
@@ -373,7 +374,7 @@ class MyClient(discord.Client):
         # 每日金句模組(已在上方定義 tz, now, is_allow_time)
 
         if zero_clock_only and not is_allow_time:
-            # print(f"現在時間 {now.strftime('%H:%M')} 非每日金句執行時段。")
+            print(f"現在時間 {now.strftime('%H:%M')} 非每日金句執行時段。")
             await self.close()
             return
 
