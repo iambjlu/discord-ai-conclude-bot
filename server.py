@@ -4,6 +4,7 @@ import json
 sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
+import random
 
 
 # --- 0. 基礎依賴檢查 (Helper) ---
@@ -502,10 +503,10 @@ async def run_link_screenshot(client, settings, secrets):
         await asyncio.to_thread(set_simulator_preferences, ipad_uuid)
 
         # 狀態檢查與啟動
-        if ipad_status == "Booted":
-            print("   � 偵測到模擬器已開啟，正在重啟以確保語系生效...")
-            await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "shutdown", ipad_uuid])
-            await asyncio.sleep(5) # 等待完全關閉
+        # if ipad_status == "Booted":
+        #     print("   � 偵測到模擬器已開啟，正在重啟以確保語系生效...")
+        #     await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "shutdown", ipad_uuid])
+        #     await asyncio.sleep(5) # 等待完全關閉
         
         print("   🚀 啟動模擬器...")
         await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "boot", ipad_uuid])
@@ -534,6 +535,38 @@ async def run_link_screenshot(client, settings, secrets):
         # 處理連結
         for idx, (url, msg) in enumerate(captured_links):
             print(f"   [{idx+1}/{len(captured_links)}] 處理: {url}")
+
+            # 訊號(Cellular): 0~4
+            # cell_bars = str(idx % 5)
+            cell_bars = str(random.randint(1, 4))
+            # Wifi: 0~3
+            wifi_bars = str(random.randint(1, 3))
+            # wifi_bars = str(idx % 4)
+            # 電池: 第一張 1% -> 最後一張 100%
+            total_links = len(captured_links)
+            if total_links > 1:
+                level = 1 + int(99 * idx / (total_links - 1))
+            else:
+                level = 100
+            batt_level = str(level)
+            
+            # 若 100% 則顯示為 discharging (剛拔掉電源的感覺)，否則顯示 charging
+            batt_state = "discharging" if level == 100 else "charging"
+
+            sb_cmd = [
+                "xcrun", "simctl", "status_bar", ipad_uuid, "override",
+                "--dataNetwork", "5g",
+                "--wifiMode", "active",     # 改為 active 才能顯示 WiFi 格數
+                "--wifiBars", wifi_bars,
+                "--cellularMode", "active",
+                "--cellularBars", cell_bars,
+                "--operatorName", "Google Fi",
+                "--batteryState", batt_state,
+                "--batteryLevel", batt_level
+            ]
+            # 執行 Status Bar Override
+            await asyncio.to_thread(subprocess.run, sb_cmd)
+
             await asyncio.sleep(5) # 緩衝 (從 3s 改為 5s)
 
             # 開啟網頁
@@ -541,7 +574,6 @@ async def run_link_screenshot(client, settings, secrets):
             for _ in range(3): # 增加重試次數 (2 -> 3)
                 # 使用 asyncio.to_thread 避免卡住 event loop
                 try:
-                    await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "status_bar", ipad_uuid, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100", "--dataNetwork", "wifi", "--operatorName", "移动5G", "--batteryState", "discharging", "--wifiBars", "3", "--wifiMode", "active", "--cellularMode", "active", "--cellularBars", "4", "--batteryLevel", "100"], capture_output=True)
                     res = await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "openurl", ipad_uuid, url], capture_output=True)
                     if res.returncode == 0:
                         success_open = True
