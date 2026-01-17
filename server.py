@@ -332,7 +332,7 @@ class MyClient(discord.Client):
                     
                     # 3. 使用 Mac 內建的 screencapture 指令截取整個螢幕
                     screenshot_filename = f"screenshot_temp.jpg"
-                    os.system('sudo killall -9 UserNotificationCenter')
+                    subprocess.run(["sudo", "killall", "-9", "UserNotificationCenter"], stderr=subprocess.DEVNULL)
                     subprocess.run(["screencapture", "-x", screenshot_filename])
                     
                     # 4. 回傳到 Target Channel
