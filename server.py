@@ -375,7 +375,7 @@ class MyClient(discord.Client):
                         print(f"🌐 開啟網址: {url}")
                         
                         # 先睡一下確保切換順暢
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(5)
                         
                         # 有時候 Safari 剛啟動會沒反應，試兩次
                         success_open = False
