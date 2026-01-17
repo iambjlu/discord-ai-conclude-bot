@@ -271,9 +271,8 @@ async def run_ai_summary(client, settings, secrets):
                             f"\n"
                             f"{summary_text}\n"
                             f"\n"
-                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型驅動。\n"
-                            f"💡 AI總結內容僅供參考，敬請核實。\n"
-                            f"🤓 使用模型：「{gemini_model}」。"
+                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{gemini_model}」驅動。\n"
+                            f"🤓 AI總結內容僅供參考，敬請核實。\n"
                         )
                         await target_ch.send(report)
                         print("   ✅ AI 總結已發送")
