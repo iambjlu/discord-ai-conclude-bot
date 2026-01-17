@@ -55,11 +55,11 @@ def get_settings():
         # --- 功能開關 ---
         "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
         "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
-        "DAILY_QUOTE_MIDNIGHT_ONLY": False, # 每日金句 (True=只在午夜, False=立即執行 | 預設 True)
-        "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成 (True=啟用, False=停用)
+        "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
+        "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
         
         # --- 每日金句 ---
-        "DAYS_AGO": 2,                   # 0為今天, 1為昨天...
+        "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
         
         # --- Gemini AI 總結 ---
         "RECENT_MSG_HOURS": 5,           # 抓取範圍 (X小時內)
