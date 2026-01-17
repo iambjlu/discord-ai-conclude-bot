@@ -340,12 +340,13 @@ class ImageGenerator:
             except:
                 browser = await p.chromium.launch(headless=True)
                 
-            try:
-                browser = await p.chromium.launch(channel="chrome", headless=True) # Try system Chrome first for improved font rendering
-            except:
-                browser = await p.chromium.launch(headless=True)
-                
-            page = await browser.new_page(viewport={"width": 1440, "height": 2560})
+            # 設定語系與時區
+            context = await browser.new_context(
+                viewport={"width": 1440, "height": 2560},
+                locale="zh-TW",
+                timezone_id="Asia/Taipei"
+            )
+            page = await context.new_page()
             await page.set_content(html_content)
             await page.wait_for_timeout(500) # Wait for fonts/images
             
