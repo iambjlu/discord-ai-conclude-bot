@@ -1,3 +1,5 @@
 discord.py
 google-genai
 python-dotenv
+playwright
+pillow

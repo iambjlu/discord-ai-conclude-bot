@@ -1,19 +1,16 @@
-# server.py (v4)
+# server.py (v3)
 import sys
 import json
 sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
 
-
 # --- 0. 基礎依賴檢查 (Helper) ---
 def check_requirements():
     required_packages = {
         'discord': 'discord.py',
         'google.genai': 'google-genai',
-        'dotenv': 'python-dotenv',
-        'playwright': 'playwright',
-        'PIL': 'pillow',
+        'dotenv': 'python-dotenv'
     }
     missing = []
     for module_name, package_name in required_packages.items():
@@ -42,8 +39,6 @@ from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
-from playwright.async_api import async_playwright
-from renderer import ImageGenerator
 
 # ==========================================
 #              設定與環境 (FUNCTIONS)
@@ -53,13 +48,12 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 ---
-        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
-        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
-        "DAILY_QUOTE_MIDNIGHT_ONLY": False, # 每日金句 (True=只在午夜, False=立即執行 | 預設 True)
-        "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成 (True=啟用, False=停用)
+        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用)
+        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用)
+        "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 每日金句 (True=只在午夜, False=立即執行)
         
         # --- 每日金句 ---
-        "DAYS_AGO": 2,                   # 0為今天, 1為昨天...
+        "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
         
         # --- Gemini AI 總結 ---
         "RECENT_MSG_HOURS": 5,           # 抓取範圍 (X小時內)
@@ -332,69 +326,14 @@ async def run_daily_quote(client, settings, secrets):
     
     target_ch = client.get_channel(secrets["TARGET_CHANNEL_ID"])
     if best_message and target_ch:
-        # 準備資料
-        print("   📊 正在分析每日金句...")
+        emoji_detail = " ".join([f"{str(r.emoji)} x{r.count}" for r in best_message.reactions])
+        content = best_message.content or f"[**查看詳細**]({best_message.jump_url})"
         
-        # 1. 取得頭像
-        avatar_bytes = None
-        try:
-            avatar_bytes = await best_message.author.display_avatar.read()
-        except: pass
-
-        # 2. 取得伺服器 Icon
-        server_icon_bytes = None
-        server_name = "Discord"
-        if best_message.guild:
-            server_name = best_message.guild.name
-            if best_message.guild.icon:
-                try:
-                    server_icon_bytes = await best_message.guild.icon.read()
-                except: pass
-
-        # 3. 取得附件圖片 (僅取第一張)
-        attachment_bytes = None
-        if best_message.attachments:
-            for att in best_message.attachments:
-                if att.content_type and att.content_type.startswith('image'):
-                    try:
-                        attachment_bytes = await att.read()
-                        break
-                    except: pass
-        
-        # 4. 表情符號資料列表 [(emoji_str, count, url), ...]
-        reactions_data = []
-        for r in best_message.reactions:
-            e_str = str(r.emoji)
-            url = None
-            if hasattr(r.emoji, "url"):
-                url = r.emoji.url
-            reactions_data.append((e_str, r.count, url))
-        
-        # 排序：數量多的在前面
-        reactions_data.sort(key=lambda x: x[1], reverse=True)
-        
-        # 5. 日期格式
-        date_dt = best_message.created_at.astimezone(settings["TZ"])
-        date_text_img = f"金句王<span class='date-subtext'>{date_dt.year}年{date_dt.month}月{date_dt.day}日</span>"
-        target_date_str = date_dt.strftime('%Y年%m月%d日 %A')
-        
-        # 0. 準備內容 (Bot 文字訊息用)
-        content = best_message.content or f"[**無法言喻的訊息，點一下來查看**]({best_message.jump_url})"
-        
-        # 0.5 準備內容 (圖片生成用 - 純淨版)
-        image_clean_content = best_message.content if best_message.content else ""
-        
-        # Mentions 替換 (Bot 文字訊息用)
+        # Mentions 替換
         if best_message.mentions:
             for user in best_message.mentions:
                 content = content.replace(f"<@{user.id}>", f"@{user.display_name}")
                 content = content.replace(f"<@!{user.id}>", f"@{user.display_name}")
-                
-        # Mentions 替換 (圖片生成用)
-        if best_message.mentions and image_clean_content:
-            for user in best_message.mentions:
-                 image_clean_content = image_clean_content.replace(f"<@{user.id}>", f"@{user.display_name}")
-                 image_clean_content = image_clean_content.replace(f"<@!{user.id}>", f"@{user.display_name}")
 
         # 額外資訊 (轉發/附件)
         extras = []
@@ -407,59 +346,19 @@ async def run_daily_quote(client, settings, secrets):
         
         if best_message.attachments:
             for att in best_message.attachments:
-                # 只有非圖片附件才列出連結，圖片已經被 renderer 處理了
-                if not (att.content_type and att.content_type.startswith('image')):
-                     extras.append(f"📎 [附件]: {att.url}")
+                extras.append(f"📎 [附件]: {att.url}")
         
         if extras: content += "\n\n" + "\n".join(extras)
-        
-        # 呼叫生成器 (若開啟)
-        img_buffer = None
-        if settings.get("DAILY_QUOTE_IMAGE_ENABLED", True):
-            print("   🎨 正在生成每日金句圖片...")
-            generator = ImageGenerator()
-            
-            # 改為直接 await (因為 renderer 內部現在是用 async Playwright)
-            img_buffer = await generator.generate_quote_card(
-                quote_content=image_clean_content,
-                author_name=best_message.author.display_name,
-                author_avatar=avatar_bytes,
-                date_text=date_text_img,
-                server_name=server_name,
-                server_icon=server_icon_bytes,
-                attachment_image=attachment_bytes,
-                reactions=reactions_data
-            )
-        
-        # 發送
-        if img_buffer:
-             file = discord.File(fp=img_buffer, filename="daily_quote.png")
-             
-             # 準備詳細文字報告
-             emoji_detail = " ".join([f"{str(r.emoji)} x{r.count}" for r in best_message.reactions])
-             
-             report = (
-                f"# 🏆 **{target_date_str} 每日金句出爐囉！**\n"
-                f"🔗 來源: {best_message.jump_url}\n"
-                f"👨‍💻 作者: {best_message.author.mention}\n\n"
-                f">>> {content}\n\n"
-                f"🔥 **總表情數：{max_reactions}**\n"
-                f"📊 **表情明細：** {emoji_detail}\n"
-             )
-             await target_ch.send(content=report, file=file)
-             print("   ✅ 金句圖片已發送")
-        else:
-             # 純文字模式 fallback
-             emoji_detail = " ".join([f"{str(r.emoji)} x{r.count}" for r in best_message.reactions])
-             report = (
-                f"# 🏆 **{target_date_str} 每日金句**\n"
-                f"🔗 {best_message.jump_url}\n"
-                f"👨‍💻 {best_message.author.mention}\n\n"
-                f">>> {content}\n\n"
-                f"🔥 **表情總數：{max_reactions}** ({emoji_detail})\n"
-             )
-             await target_ch.send(content=report)
-             print("   ✅ 金句(純文字)已發送")
+
+        report = (
+            f"# 🏆 **{target_date_str} 每日金句**\n"
+            f"🔗 {best_message.jump_url}\n"
+            f"👨‍💻 {best_message.author.mention}\n\n"
+            f">>> {content}\n\n"
+            f"🔥 **表情總數：{max_reactions}** ({emoji_detail})\n"
+        )
+        await target_ch.send(report)
+        print("   ✅ 金句已發送")
     else:
         print("   ⚠️ 沒找到熱門訊息或無目標頻道")
     print()
