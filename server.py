@@ -1,5 +1,6 @@
 # server.py (v3)
 import sys
+import json
 sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
@@ -47,15 +48,15 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 ---
-        "AI_SUMMARY_ENABLED": True,      # AI總結
-        "LINK_SCREENSHOT_ENABLED": True, # 連結截圖
-        "ZERO_CLOCK_ONLY": True,         # 每日金句 (True=只在午夜)
+        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用)
+        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用)
+        "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 每日金句 (True=只在午夜, False=立即執行)
         
         # --- 每日金句 ---
         "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
         
         # --- Gemini AI 總結 ---
-        "RECENT_MSG_HOURS": 5,           # 抓取範圍
+        "RECENT_MSG_HOURS": 5,           # 抓取範圍 (X小時內)
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
@@ -68,7 +69,7 @@ def get_settings():
 ## [頻道名]
 (請條列四五個重點但只能一層)\n
 **提及的規劃**\n(請列出所有提到的時間規劃)\n
-**結論**\n(如有結論請列出)\n
+**結論**\n(總結內容)\n
 """,
         # --- 系統變數 ---
         "TZ": timezone(timedelta(hours=8))
@@ -243,6 +244,7 @@ async def run_ai_summary(client, settings, secrets):
                 collected_output.extend(channel_msgs)
 
         final_messages_str = "\n".join(collected_output)
+        print(f"--- 收集到的訊息 ---\n{final_messages_str}\n--------------------")
         print("   訊息收集完成，準備進行 AI 總結...")
 
         target_ch_id = secrets["TARGET_CHANNEL_ID"]
@@ -263,22 +265,29 @@ async def run_ai_summary(client, settings, secrets):
                     )
                     
                     if response.text:
+                        print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
                         start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
                         end_str = now.strftime('%H:%M')
                         report = (
-                            f"# ✨ {recent_msg_hours} 小時重點摘要出爐囉！\n"
-                            f"** 🕘 時間範圍：{start_time_str} ~ {end_time_str}**\n"
+                            f"# ✨ {hours} 小時重點摘要出爐囉！\n"
+                            f"** 🕘 時間範圍：{start_str} ~ {end_str}**\n"
                             f"\n"
-                            f"{summary_text}\n"
+                            f"{response.text}\n"
                             f"\n"
-                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{gemini_model}」驅動。\n"
+                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
                             f"🤓 AI總結內容僅供參考，敬請核實。\n"
                         )
                         await target_ch.send(report)
                         print("   ✅ AI 總結已發送")
                 except Exception as e:
                     print(f"   ❌ Gemini 錯誤: {e}")
-                    await target_ch.send(f"⚠️ Gemini 總結失敗: {e}")
+                    error_payload = {
+                        "status": "Failed",
+                        "module": "Gemini AI Summary",
+                        "reason": str(e),
+                        "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    await target_ch.send(f"**⚠️ Gemini 發生錯誤**```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```")
             elif not target_ch:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
@@ -291,7 +300,7 @@ async def run_daily_quote(client, settings, secrets):
     now = datetime.now(tz)
     is_allow_time = (now.hour == 0)
 
-    if settings["ZERO_CLOCK_ONLY"] and not is_allow_time:
+    if settings["DAILY_QUOTE_MIDNIGHT_ONLY"] and not is_allow_time:
         print(f"⏹️ [Daily Quote] 現在 {now.strftime('%H:%M')} 非執行時段 (00:xx)，跳過。")
         return
 
