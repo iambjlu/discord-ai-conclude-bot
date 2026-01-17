@@ -119,6 +119,7 @@ class MyClient(discord.Client):
 ## [頻道名]
 (請條列四五個重點但只能一層)\n
 **結論**\n(如有結論請列出)\n
+**AI點評**\n(以Z世代的口吻給出幽默的見解)\n
 """
         ######################
 
@@ -141,7 +142,7 @@ class MyClient(discord.Client):
                 # 決定時間格式
                 time_fmt = ""
                 if show_date:
-                    time_fmt += "%Y-%m-%d "
+                    time_fmt += "%Y/%m/%d "
                 time_fmt += "%H:%M"
                 if show_seconds:
                     time_fmt += ":%S"
@@ -350,7 +351,7 @@ class MyClient(discord.Client):
                             f"📸 **網頁預覽**\n"
                             f">>> 💬 訊息來源: {msg.jump_url}\n"
                             f"👤 發送者: @{msg.author.name}\n"
-                            f"🕒 發送時間: {msg.created_at.astimezone(tz).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                            f"🕒 發送時間: {msg.created_at.astimezone(tz).strftime('%m/%d (%a) %H:%M')}\n"
                             f"🔗 原始連結: <{url}>\n"
                         )
                         
