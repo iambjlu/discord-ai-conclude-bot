@@ -2,15 +2,21 @@
 
 這是一個 Discord 機器人，專為學習社群設計。它具有以下核心功能：
 1. **歷史熱門訊息摘要**：抓取指定頻道最近 X 小時的訊息，利用 Gemini AI 進行重點摘要，並發送到指定頻道。
-2. **每日金句**：每天自動統計前一天獲得最多表情反應（Reaction）的訊息，製作成「每日金句」戰報。
+2. **每日金句圖片**：每天自動統計前一天獲得最多表情反應（Reaction）的訊息，並透過 Playwright 自動渲染出一張精美的「每日金句」圖片戰報。
+3. **網頁連結預覽**：自動偵測指定頻道中的 URL，呼叫 iOS 模擬器 (iPad) 開啟網頁並截圖，讓社群成員不必點開連結也能預覽內容。
 
 ---
 
 ## 🛠️ 安裝說明 (Installation)
 
 ### 1. 環境準備
-請確保您的電腦已安裝 **Python 3.8** 或以上版本。
-您可以透過以下指令檢查：
+此專案的部分功能（如 iOS 模擬器截圖）需要 **macOS** 環境與 **Xcode** 支援。
+請確保您的環境包含：
+*   **Python 3.8+**
+*   **macOS** (若需使用連結截圖功能)
+*   **Xcode Command Line Tools** (包含 simulator)
+
+檢查 Python 版本：
 ```bash
 python3 --version
 ```
@@ -22,8 +28,9 @@ python3 --version
 程式內建了自動檢查與安裝機制，但您也可以手動安裝：
 ```bash
 pip install -r requirements.txt
+playwright install  # 安裝 Playwright 瀏覽器核心
 ```
-*必要的套件包含：`discord.py`, `google-generativeai`, `python-dotenv`*
+*必要的套件包含：`discord.py`, `google-genai`, `python-dotenv`, `playwright`, `pillow`*
 
 ### 4. 設定環境變數 (.env)
 在專案根目錄下建立一個名為 `.env` 的檔案（如果是 Mac/Linux，請注意檔案名稱開頭有點）。
@@ -71,7 +78,9 @@ python3 server.py
 
 *   `recent_msg_hours = 4`: 設定摘要功能要抓取最近幾小時的訊息。
 *   `gemini_model = "gemini-3-flash-preview"`: 設定使用的 Gemini 模型版本。
-*   `gemini_token_limit = 4000`:設定 AI 回應的長度上限。
+*   `gemini_token_limit = 4000`: 設定 AI 回應的長度上限。
+*   `LINK_SCREENSHOT_ENABLED = True`: 開啟/關閉連結自動截圖功能。
+*   `DAILY_QUOTE_IMAGE_ENABLED = True`: 開啟/關閉金句圖片生成功能。
 *   `zero_clock_only = True`: 若設為 `True`，每日金句功能只會在午夜執行；設為 `False` 則每次啟動都會執行（方便測試）。
 
 ---
