@@ -266,10 +266,14 @@ async def run_ai_summary(client, settings, secrets):
                         start_str = target_time_ago.strftime('%m月%d日 %H:%M')
                         end_str = now.strftime('%H:%M')
                         report = (
-                            f"# ✨ {hours} 小時重點摘要\n"
-                            f"**🕘 {start_str} ~ {end_str}**\n\n"
-                            f"{response.text}\n\n"
-                            f">>> 🤖 Model: `{settings['GEMINI_MODEL']}`"
+                            f"# ✨ {recent_msg_hours} 小時重點摘要出爐囉！\n"
+                            f"** 🕘 時間範圍：{start_time_str} ~ {end_time_str}**\n"
+                            f"\n"
+                            f"{summary_text}\n"
+                            f"\n"
+                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型驅動。\n"
+                            f"💡 AI總結內容僅供參考，敬請核實。\n"
+                            f"🤓 使用模型：「{gemini_model}」。"
                         )
                         await target_ch.send(report)
                         print("   ✅ AI 總結已發送")
