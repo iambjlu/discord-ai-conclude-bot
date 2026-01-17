@@ -55,7 +55,7 @@ def get_settings():
     return {
         # --- 功能開關 ---
         "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
-        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
+        "LINK_SCREENSHOT_ENABLED": False,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
         "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
         "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
         
@@ -175,6 +175,32 @@ def set_simulator_preferences(uuid):
     except subprocess.CalledProcessError as e:
         print(f"   ⚠️ 無法設定語系 (可能是路徑錯誤或權限問題): {e}")
 
+
+def generate_choice_solver():
+    """生成選擇困難解決器 (骰子與硬幣)"""
+    # 骰子 (1-6) x 10 (使用全形數字以保持等寬)
+    full_width_digits = ['１', '２', '３', '４', '５', '６']
+    dice_outcomes = [random.choice(full_width_digits) for _ in range(10)]
+    dice_str = "  ".join([f"|| {x} ||" for x in dice_outcomes])
+    
+    # 硬幣 (正/反) x 10
+    coin_outcomes = ["正" if random.choice([True, False]) else "反" for _ in range(10)]
+    coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
+    
+    # 剪刀石頭布 x 10
+    rps_choices = ['✌️', '✊', '🖐️']
+    rps_outcomes = [random.choice(rps_choices) for _ in range(10)]
+    rps_str = "  ".join([f"|| {x} ||" for x in rps_outcomes])
+    
+    return (
+        "\n## 選擇困難解決器\n"
+        "🎲 拆個骰子吧\n"
+        f"{dice_str}\n"
+        "🪙 丟個硬幣吧\n"
+        f"{coin_str}\n"
+        "🫵 剪刀石頭布\n"
+        f"{rps_str}\n"
+    )
 
 # ==========================================
 #              主要邏輯 (FEATURES)
@@ -298,6 +324,7 @@ async def run_ai_summary(client, settings, secrets):
                             f"\n"
                             f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
                             f"🤓 AI總結內容僅供參考，敬請核實。\n"
+                            f"{generate_choice_solver()}"
                         )
                         await target_ch.send(report)
                         print("   ✅ AI 總結已發送")
@@ -309,7 +336,8 @@ async def run_ai_summary(client, settings, secrets):
                         "reason": str(e),
                         "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                     }
-                    await target_ch.send(f"**⚠️ Gemini 發生錯誤**```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```")
+                    error_msg = f"**⚠️ Gemini 發生錯誤**```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
+                    await target_ch.send(f"{error_msg}\n{generate_choice_solver()}")
             elif not target_ch:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
