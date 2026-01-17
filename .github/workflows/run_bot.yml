@@ -1,0 +1,46 @@
+name: Run Discord Bot
+
+on:
+  # schedule:
+    # 每天的 UTC 時間 0, 4, 8, 12, 16, 20 點執行
+    # 對應台灣時間 (UTC+8) 的 08, 12, 16, 20, 00, 04 點
+    # 若您希望是對應「台灣時間」的 0, 4, 8...，由於 cron 使用 UTC，
+    # 台灣時間 00:00 = UTC 16:00 (前一天)
+    # 台灣時間 04:00 = UTC 20:00 (前一天)
+    # 台灣時間 08:00 = UTC 00:00
+    # 台灣時間 12:00 = UTC 04:00
+    # 台灣時間 16:00 = UTC 08:00
+    # 台灣時間 20:00 = UTC 12:00
+    # 因為間隔剛好是 4 小時，且 8 是 4 的倍數，所以 cron 表達式剛好一樣都是 0,4,8,12,16,20
+    #- cron: '2 0,4,8,12,16,20 * * *'
+  
+  # 允許手動從 Actions 頁面觸發
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10' 
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Bot Script
+      env:
+        # 請記得去 GitHub Repo Settings -> Secrets and variables -> Actions 加入這些 Secrets
+        DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        SOURCE_CHANNEL_IDS: ${{ secrets.SOURCE_CHANNEL_IDS }}
+        TARGET_CHANNEL_ID: ${{ secrets.TARGET_CHANNEL_ID }}
+      run: |
+        python server.py
