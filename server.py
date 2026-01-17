@@ -53,9 +53,9 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 ---
-        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
+        "AI_SUMMARY_ENABLED": False,        # AI總結 (True=啟用, False=停用 | 預設 True)
         "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
-        "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
+        "DAILY_QUOTE_MIDNIGHT_ONLY": False, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
         "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
         
         # --- 每日金句 ---
@@ -514,23 +514,29 @@ async def run_link_screenshot(client, settings, secrets):
         # 處理連結
         for idx, (url, msg) in enumerate(captured_links):
             print(f"   [{idx+1}/{len(captured_links)}] 處理: {url}")
-            await asyncio.sleep(3) # 緩衝
+            await asyncio.sleep(5) # 緩衝 (從 3s 改為 5s)
 
             # 開啟網頁
             success_open = False
-            for _ in range(2):
-                res = await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "openurl", ipad_uuid, url])
-                if res.returncode == 0:
-                    success_open = True
-                    break
-                await asyncio.sleep(3)
+            for _ in range(3): # 增加重試次數 (2 -> 3)
+                # 使用 asyncio.to_thread 避免卡住 event loop
+                try:
+                    res = await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "openurl", ipad_uuid, url], capture_output=True)
+                    if res.returncode == 0:
+                        success_open = True
+                        break
+                except Exception as e:
+                    print(f"   ⚠️ openurlException: {e}")
+                
+                print("   ⚠️ 開啟超時或失敗，等待重試...")
+                await asyncio.sleep(5) # 重試間隔 (3s -> 5s)
             
             if not success_open:
-                print("   ❌ 無法開啟連結")
+                print("   ❌ 無法開啟連結 (多次嘗試失败)")
                 continue
 
             print("   ⏳ 等待渲染...")
-            await asyncio.sleep(12)
+            await asyncio.sleep(15) # 等待渲染 (12s -> 15s)
 
             filename = f"screenshot_temp_{idx}.png"
             await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "io", ipad_uuid, "screenshot", filename])
