@@ -87,8 +87,10 @@ if target_preview_id_str:
     except ValueError:
         print(f"❌ 錯誤: TARGET_PREVIEW_ID 格式不正確 (應為數字): {target_preview_id_str}")
 else:
-    print("ℹ️ 提示: TARGET_PREVIEW_ID 未設定，將默認使用 TARGET_CHANNEL_ID。")
-    TARGET_PREVIEW_ID = TARGET_CHANNEL_ID
+    print("⚠️ 警告: TARGET_PREVIEW_ID 未設定，連結預覽截圖將無法發送 (或需 fallback)。")
+    # 如果希望沒設定就回退到預設頻道，可以打開下面這行：
+    # TARGET_PREVIEW_ID = TARGET_CHANNEL_ID 
+
 # ------------------------
 
 class MyClient(discord.Client):
@@ -97,9 +99,9 @@ class MyClient(discord.Client):
 
         #快速設定 ############################################
         days_ago = 1          # 每日金句: 0為今天, 1為昨天...
-        zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行 (預設True)
-        ai_summary_zero_clock_only = False # AI總結: True=只在午夜執行, False=每次都執行 (預設False)
-        link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行 (預設False)
+        zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行
+        ai_summary_zero_clock_only = True # AI總結: True=只在午夜執行, False=每次都執行
+        link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行
         
         # Gemini 重點摘要設定 #################################
         recent_msg_hours = 1  # 抓取最近 x 小時的訊息
@@ -334,7 +336,13 @@ class MyClient(discord.Client):
                     subprocess.run(["screencapture", "-x", screenshot_filename])
                     
                     # 4. 回傳到 Target Channel
-                    target_ch = self.get_channel(TARGET_PREVIEW_ID)
+                    target_ch = None
+                    if TARGET_PREVIEW_ID:
+                        target_ch = self.get_channel(TARGET_PREVIEW_ID)
+                    
+                    if not target_ch:
+                         print(f"⚠️ 找不到預覽目標頻道 ID: {TARGET_PREVIEW_ID}")
+                    
                     if target_ch:
                         # 準備文字訊息
                         content_text = (
