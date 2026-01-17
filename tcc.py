@@ -62,7 +62,8 @@ def inject_tcc():
         # 刷掉快取，強制生效
         os.system('sudo killall -9 tccd')
         os.system('sudo killall -9 UserNotificationCenter')
-        print('\n✅ Bash 與其他工具權限已注入。現在你可以橫著走了。')
+        os.system('defaults write com.apple.screencapture type jpg')
+        print('\n✅ 已取得權限')
 
     except Exception as e:
         print(f'❌ Injection Failed: {e}')
