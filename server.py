@@ -125,7 +125,7 @@ class MyClient(discord.Client):
         #快速設定 ############################################
         days_ago = 1          # 每日金句: 0為今天, 1為昨天...
         zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行  (預設 True)
-        ai_summary_zero_clock_only = True # AI總結: True=只在午夜執行, False=每次都執行  (預設 False)
+        ai_summary_zero_clock_only = False # AI總結: True=只在午夜執行, False=每次都執行  (預設 False)
         link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行  (預設 False)
         
         # Gemini 重點摘要設定 #################################
