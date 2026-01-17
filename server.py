@@ -176,9 +176,12 @@ class MyClient(discord.Client):
                                     content += f"[轉發內容]: {s_content}"
                                 
                                 # 嘗試取得轉發附件
-                                if show_attachments and hasattr(snapshot, 'attachments'):
-                                    for att in snapshot.attachments:
-                                        content += f" (轉發附件 {att.url})"
+                                if hasattr(snapshot, 'attachments'):
+                                    if show_attachments:
+                                        for att in snapshot.attachments:
+                                            content += f" (轉發附件 {att.url})"
+                                    elif snapshot.attachments:
+                                        content += " (轉發附件)"
 
                         # 處理連結簡化 (變數控制)
                         if simplify_links:
@@ -218,16 +221,19 @@ class MyClient(discord.Client):
                         if len(author_name) > author_name_limit:
                             author_name = author_name[:author_name_limit]
                         
-                        # 若內容為空且不顯示附件，則跳過此訊息
-                        if not content.strip() and not show_attachments:
+                        # 若內容為空且無附件，則跳過此訊息
+                        if not content.strip() and not msg.attachments:
                             continue
                         
                         channel_msgs.append(f"{author_name}@{created_at_local}: {content}")
                         
                         # 處理附件顯示
-                        if show_attachments and msg.attachments:
-                            for attachment in msg.attachments:
-                                channel_msgs.append(f"(附件 {attachment.url})")
+                        if msg.attachments:
+                            if show_attachments:
+                                for attachment in msg.attachments:
+                                    channel_msgs.append(f"(附件 {attachment.url})")
+                            else:
+                                channel_msgs.append("(附件)")
                     
                     # 如果該頻道有訊息，才加入 output
                     if channel_msgs:
