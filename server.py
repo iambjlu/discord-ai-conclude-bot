@@ -55,7 +55,7 @@ def get_settings():
         "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
         
         # --- Gemini AI 總結 ---
-        "RECENT_MSG_HOURS": 4,           # 抓取範圍
+        "RECENT_MSG_HOURS": 5,           # 抓取範圍
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
@@ -173,7 +173,7 @@ async def run_ai_summary(client, settings, secrets):
     try:
         # 時間格式
         time_fmt = ""
-        if settings["SHOW_DATE"]: time_fmt += "%Y/%m/%d "
+        if settings["SHOW_DATE"]: time_fmt += "%Y年%m月%d日 %A "
         time_fmt += "%H:%M"
         if settings["SHOW_SECONDS"]: time_fmt += ":%S"
 
@@ -263,7 +263,7 @@ async def run_ai_summary(client, settings, secrets):
                     )
                     
                     if response.text:
-                        start_str = target_time_ago.strftime('%m月%d日 %H:%M')
+                        start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
                         end_str = now.strftime('%H:%M')
                         report = (
                             f"# ✨ {recent_msg_hours} 小時重點摘要出爐囉！\n"
@@ -299,7 +299,7 @@ async def run_daily_quote(client, settings, secrets):
     print(">>> [Daily Quote] 開始執行：每日金句")
     target_start = (now - timedelta(days=settings["DAYS_AGO"])).replace(hour=0, minute=0, second=0, microsecond=0)
     target_end = target_start + timedelta(days=1)
-    target_date_str = target_start.strftime('%Y-%m-%d')
+    target_date_str = target_start.strftime('%Y年%m月%d日 %A')
     
     print(f"   查詢日期: {target_date_str}")
     best_message = None
@@ -431,7 +431,7 @@ async def run_link_screenshot(client, settings, secrets):
 
             if target_ch:
                 content_text = (
-                    f"📸 **網頁預覽** {msg.created_at.astimezone(tz).strftime('%Y/%m/%d %H:%M')}\n"
+                    f"📸 **網頁預覽** {msg.created_at.astimezone(tz).strftime('%Y年%m月%d日 %A %H:%M')}\n"
                     f">>> 💬 @{msg.author.name} 傳送到 {msg.jump_url}\n"
                     f" 原始連結: <{url}>\n"
                 )
