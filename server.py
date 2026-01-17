@@ -100,12 +100,12 @@ class MyClient(discord.Client):
 
         #快速設定 ############################################
         days_ago = 1          # 每日金句: 0為今天, 1為昨天...
-        zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行
-        ai_summary_zero_clock_only = True # AI總結: True=只在午夜執行, False=每次都執行
-        link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行
+        zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行  (預設 True)
+        ai_summary_zero_clock_only = False # AI總結: True=只在午夜執行, False=每次都執行  (預設 False)
+        link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行  (預設 False)
         
         # Gemini 重點摘要設定 #################################
-        recent_msg_hours = 1  # 抓取最近 x 小時的訊息
+        recent_msg_hours = 4  # 抓取最近 x 小時的訊息
         author_name_limit = 4 # 名字顯示長度限制
         show_date = False      # 是否顯示日期
         show_seconds = False   # 是否顯示秒數
