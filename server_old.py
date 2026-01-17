@@ -94,30 +94,6 @@ else:
 
 # ------------------------
 
-# --- iPad Screenshot Helper ---
-def get_best_ipad_13():
-    try:
-        output = subprocess.check_output(["xcrun", "simctl", "list", "devices"], text=True)
-        # 找 13-inch iPad，並分組抓取名稱、UUID 與狀態
-        pattern = r"(iPad.*13-inch.*?)\s\(([A-F0-9-]{36})\)\s\((.*?)\)"
-        matches = re.findall(pattern, output)
-        
-        if not matches:
-            print("❌ 沒找到 13 吋 iPad，檢查一下 Xcode -> Components 有沒有下載 iOS。")
-            return None, None
-
-        # 排序：已開機 (Booted) 的排前面
-        sorted_matches = sorted(matches, key=lambda x: x[2] != "Booted")
-        name, uuid, status = sorted_matches[0]
-        
-        print(f"✅ 抓到目標：{name}")
-        print(f"🆔 UUID: {uuid} | 目前狀態: {status}")
-        return uuid, status
-    except Exception as e:
-        print(f"抓取清單時噴錯了: {e}")
-        return None, None
-# ------------------------------
-
 class MyClient(discord.Client):
     async def on_ready(self):
         print(f'已登入：{self.user}，開始掃描歷史熱門訊息...')
@@ -125,8 +101,8 @@ class MyClient(discord.Client):
         #快速設定 ############################################
         days_ago = 1          # 每日金句: 0為今天, 1為昨天...
         zero_clock_only = True # 每日金句: True=只在午夜執行, False=每次都執行  (預設 True)
-        ai_summary_zero_clock_only = True # AI總結: True=只在午夜執行, False=每次都執行  (預設 False)
-        link_screenshot_zero_clock_only = False # 連結截圖: True=只在午夜執行, False=每次都執行  (預設 False)
+        ai_summary_zero_clock_only = False # AI總結: True=只在午夜執行, False=每次都執行  (預設 False)
+        link_screenshot_zero_clock_only = True # 連結截圖: True=只在午夜執行, False=每次都執行  (預設 False)
         
         # Gemini 重點摘要設定 #################################
         recent_msg_hours = 4  # 抓取最近 x 小時的訊息
@@ -329,106 +305,72 @@ class MyClient(discord.Client):
              print(f"現在時間 {now.strftime('%H:%M')} 非連結截圖執行時段，跳過。")
         else:
             print(f">>> 開始執行：連結截圖 ({recent_msg_hours} 小時內)")
-            # subprocess.run(["open", "http://captive.apple.com"]) # 舊邏輯移除
-            # await asyncio.sleep(10)
-            
+            subprocess.run(["open", "http://captive.apple.com"])
+            await asyncio.sleep(10)
             try:
-                # 先取得 iPad UUID (一次性取得，避免迴圈重複呼叫)
-                ipad_uuid, ipad_status = await asyncio.to_thread(get_best_ipad_13)
+                target_time_ago = now - timedelta(hours=recent_msg_hours)
                 
-                if not ipad_uuid:
-                    print("⚠️ 無法取得 iPad Simulator UUID，跳過截圖流程。")
-                else:
-                    
-                    # 2. 如果沒開機就開機
-                    if ipad_status != "Booted":
-                        print("🚀 裝置沒開，正在幫你 Boot...")
-                        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "boot", ipad_uuid])
-                        # 等待開機完成
-                        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "bootstatus", ipad_uuid, "-b"])
-                    else:
-                        print("⚡️ 裝置開好了，直接上。")
+                # 收集所有連結
+                captured_links = [] # List of tuples (url, message_object)
 
-                    target_time_ago = now - timedelta(hours=recent_msg_hours)
+                for channel_id in SOURCE_CHANNEL_IDS:
+                    ch = self.get_channel(channel_id)
+                    if not ch: continue
                     
-                    # 收集所有連結
-                    captured_links = [] # List of tuples (url, message_object)
-
-                    for channel_id in SOURCE_CHANNEL_IDS:
-                        ch = self.get_channel(channel_id)
-                        if not ch: continue
-                        
-                        print(f"正在掃描連結: #{ch.name}")
-                        async for msg in ch.history(after=target_time_ago, limit=None):
-                             # 簡單的正則表達式抓取 http/https 連結
-                             urls = re.findall(r'(https?://\S+)', msg.content)
-                             for url in urls:
-                                 captured_links.append((url, msg))
+                    print(f"正在掃描連結: #{ch.name}")
+                    async for msg in ch.history(after=target_time_ago, limit=None):
+                         # 簡單的正則表達式抓取 http/https 連結
+                         urls = re.findall(r'(https?://\S+)', msg.content)
+                         for url in urls:
+                             captured_links.append((url, msg))
+                
+                print(f"共找到 {len(captured_links)} 個連結，準備開始截圖程序...")
+                
+                # 依序處理
+                for idx, (url, msg) in enumerate(captured_links):
+                    print(f"處理第 {idx+1}/{len(captured_links)} 個連結: {url}")
                     
-                    print(f"共找到 {len(captured_links)} 個連結，準備開始截圖程序...")
+                    # 1. 用系統預設瀏覽器打開 URL
+                    # 注意: subprocess.run 是同步阻塞的，但在本地單機腳本通常可接受
+                    subprocess.run(["open", url])
+
+                    # 2. 等 5 秒讓網頁跑一下 (使用 asyncio.sleep 避免完全卡死 Heartbeat)
+                    await asyncio.sleep(20)
                     
-                    # 依序處理
-                    for idx, (url, msg) in enumerate(captured_links):
-                        print(f"處理第 {idx+1}/{len(captured_links)} 個連結: {url}")
+                    # 3. 使用 Mac 內建的 screencapture 指令截取整個螢幕
+                    screenshot_filename = f"screenshot_temp.jpg"
+                    subprocess.run(["sudo", "killall", "-9", "UserNotificationCenter"], stderr=subprocess.DEVNULL)
+                    subprocess.run(["screencapture", "-x", screenshot_filename])
+                    
+                    # 4. 回傳到 Target Channel
+                    target_ch = None
+                    if TARGET_PREVIEW_ID:
+                        target_ch = self.get_channel(TARGET_PREVIEW_ID)
+                    
+                    if not target_ch:
+                         print(f"⚠️ 找不到預覽目標頻道 ID: {TARGET_PREVIEW_ID}")
+                    
+                    if target_ch:
+                        # 準備文字訊息
+                        content_text = (
+                            f"📸 **網頁預覽**\n"
+                            f">>> 💬 訊息來源: {msg.jump_url}\n"
+                            f"👤 發送者: @{msg.author.name}\n"
+                            f"🕒 發送時間: {msg.created_at.astimezone(tz).strftime('%m/%d (%a) %H:%M')}\n"
+                            f"🔗 原始連結: <{url}>\n"
+                        )
                         
-                        # 3. 開啟網頁
-                        print(f"🌐 開啟網址: {url}")
-                        
-                        # 先睡一下確保切換順暢
-                        await asyncio.sleep(2)
-                        
-                        # 有時候 Safari 剛啟動會沒反應，試兩次
-                        success_open = False
-                        for _ in range(2):
-                            res = await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "openurl", ipad_uuid, url])
-                            if res.returncode == 0: 
-                                success_open = True
-                                break
-                            await asyncio.sleep(5)
-                        
-                        if not success_open:
-                            print(f"❌ 無法開啟連結: {url}")
-                            continue
-
-                        # 4. 等待網頁載入
-                        print("⏳ 等待渲染...")
-                        await asyncio.sleep(15)
-                        
-                        # 6. 使用 simctl 截圖
-                        screenshot_filename = f"screenshot_temp_{idx}.png" 
-                        print(f"📸 正在截圖...")
-                        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "io", ipad_uuid, "screenshot", screenshot_filename])
-
-                        # 強制關閉 Safari 以確保載入新頁面
-                        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "terminate", ipad_uuid, "com.apple.mobilesafari"])
-                        
-                        # 4. 回傳到 Target Channel
-                        target_ch = None
-                        if TARGET_PREVIEW_ID:
-                            target_ch = self.get_channel(TARGET_PREVIEW_ID)
-                        
-                        if not target_ch:
-                             print(f"⚠️ 找不到預覽目標頻道 ID: {TARGET_PREVIEW_ID}")
-                        
-                        if target_ch:
-                            # 準備文字訊息
-                            content_text = (
-                                f"📸 **網頁預覽**\n"
-                                f">>> 💬 @{msg.author.name} 傳送到 {msg.jump_url} ({msg.created_at.astimezone(tz).strftime('%H:%M')})\n"
-                                f" 原始連結: <{url}>\n"
-                            )
-                            
-                            # 發送圖片
-                            if os.path.exists(screenshot_filename):
-                                file = discord.File(screenshot_filename)
-                                await target_ch.send(content=content_text, file=file)
-                                # 刪除暫存檔
-                                os.remove(screenshot_filename)
-                            else:
-                                await target_ch.send(content=content_text + "\n(❌ 截圖檔案未產生)")
-                        
-                        # 每個連結處理完稍微休息一下
-                        await asyncio.sleep(1)
+                        # 發送圖片
+                        if os.path.exists(screenshot_filename):
+                            file = discord.File(screenshot_filename)
+                            await target_ch.send(content=content_text, file=file)
+                            # 刪除暫存檔
+                            os.remove(screenshot_filename)
+                        else:
+                            await target_ch.send(content=content_text + "\n(❌ 截圖檔案未產生)")
+                    
+                    # 每個連結處理完稍微休息一下，避免瀏覽器開太快炸裂
+                    await asyncio.sleep(1)
 
                 print(f">>> 連結截圖程序完成\n")
 
