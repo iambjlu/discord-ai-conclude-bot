@@ -77,6 +77,18 @@ if target_ch_id_str:
         print(f"❌ 錯誤: TARGET_CHANNEL_ID 格式不正確 (應為數字): {target_ch_id_str}")
 else:
     print("⚠️ 警告: TARGET_CHANNEL_ID 未設定，將無法發送訊息。")
+
+target_preview_id_str = os.getenv('TARGET_PREVIEW_ID')
+TARGET_PREVIEW_ID = None
+if target_preview_id_str:
+    try:
+        TARGET_PREVIEW_ID = int(target_preview_id_str)
+        print(f"✅ 成功讀取預覽發送頻道: {TARGET_PREVIEW_ID}")
+    except ValueError:
+        print(f"❌ 錯誤: TARGET_PREVIEW_ID 格式不正確 (應為數字): {target_preview_id_str}")
+else:
+    print("ℹ️ 提示: TARGET_PREVIEW_ID 未設定，將默認使用 TARGET_CHANNEL_ID。")
+    TARGET_PREVIEW_ID = TARGET_CHANNEL_ID
 # ------------------------
 
 class MyClient(discord.Client):
@@ -322,7 +334,7 @@ class MyClient(discord.Client):
                     subprocess.run(["screencapture", "-x", screenshot_filename])
                     
                     # 4. 回傳到 Target Channel
-                    target_ch = self.get_channel(os.getenv(TARGET_PREVIEW_ID))
+                    target_ch = self.get_channel(TARGET_PREVIEW_ID)
                     if target_ch:
                         # 準備文字訊息
                         content_text = (
