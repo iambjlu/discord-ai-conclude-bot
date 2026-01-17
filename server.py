@@ -4,6 +4,7 @@ import json
 sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
+import random
 
 
 # --- 0. 基礎依賴檢查 (Helper) ---
@@ -53,7 +54,7 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 ---
-        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
+        "AI_SUMMARY_ENABLED": False,        # AI總結 (True=啟用, False=停用 | 預設 True)
         "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
         "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
         "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
@@ -158,6 +159,21 @@ def get_best_ipad_13():
     except Exception as e:
         print(f"抓取清單錯誤: {e}")
         return None, None
+
+def set_simulator_preferences(uuid):
+    """將模擬器強制設定為 繁體中文 (台灣)"""
+    home = os.path.expanduser("~")
+    plist_path = f"{home}/Library/Developer/CoreSimulator/Devices/{uuid}/data/Library/Preferences/.GlobalPreferences.plist"
+    
+    print(f"   ⚙️  正在設定模擬器語系 (zh_TW)...")
+    try:
+        # 設定 AppleLocale = zh_TW
+        subprocess.run(["plutil", "-replace", "AppleLocale", "-string", "zh_TW", plist_path], check=True, capture_output=True)
+        # 設定 AppleLanguages = ["zh-Hant-TW", "en-US"]
+        # 注意: JSON 格式在命令列傳遞需小心 quotes，但 subprocess list 參數會處理
+        subprocess.run(["plutil", "-replace", "AppleLanguages", "-json", '["zh-Hant-TW", "en-US"]', plist_path], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(f"   ⚠️ 無法設定語系 (可能是路徑錯誤或權限問題): {e}")
 
 
 # ==========================================
@@ -483,13 +499,18 @@ async def run_link_screenshot(client, settings, secrets):
             print("   ⚠️ 無 iPad UUID，跳過")
             return
 
-        # 開機檢查
-        if ipad_status != "Booted":
-            print("   🚀 啟動模擬器...")
-            await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "boot", ipad_uuid])
-            await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "bootstatus", ipad_uuid, "-b"])
-        else:
-            print("   ⚡️ 模擬器已就緒")
+        # 設定語系
+        await asyncio.to_thread(set_simulator_preferences, ipad_uuid)
+
+        # 狀態檢查與啟動
+        # if ipad_status == "Booted":
+        #     print("   � 偵測到模擬器已開啟，正在重啟以確保語系生效...")
+        #     await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "shutdown", ipad_uuid])
+        #     await asyncio.sleep(5) # 等待完全關閉
+        
+        print("   🚀 啟動模擬器...")
+        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "boot", ipad_uuid])
+        await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "bootstatus", ipad_uuid, "-b"])
 
         # 收集連結
         captured_links = []
@@ -514,6 +535,38 @@ async def run_link_screenshot(client, settings, secrets):
         # 處理連結
         for idx, (url, msg) in enumerate(captured_links):
             print(f"   [{idx+1}/{len(captured_links)}] 處理: {url}")
+
+            # 訊號(Cellular): 0~4
+            # cell_bars = str(idx % 5)
+            cell_bars = str(random.randint(1, 4))
+            # Wifi: 0~3
+            wifi_bars = str(random.randint(1, 3))
+            # wifi_bars = str(idx % 4)
+            # 電池: 第一張 1% -> 最後一張 100%
+            total_links = len(captured_links)
+            if total_links > 1:
+                level = 1 + int(99 * idx / (total_links - 1))
+            else:
+                level = 100
+            batt_level = str(level)
+            
+            # 若 100% 則顯示為 discharging (剛拔掉電源的感覺)，否則顯示 charging
+            batt_state = "discharging" if level == 100 else "charging"
+
+            sb_cmd = [
+                "xcrun", "simctl", "status_bar", ipad_uuid, "override",
+                "--dataNetwork", "5g",
+                "--wifiMode", "active",     # 改為 active 才能顯示 WiFi 格數
+                "--wifiBars", wifi_bars,
+                "--cellularMode", "active",
+                "--cellularBars", cell_bars,
+                "--operatorName", "Google Fi",
+                "--batteryState", batt_state,
+                "--batteryLevel", batt_level
+            ]
+            # 執行 Status Bar Override
+            await asyncio.to_thread(subprocess.run, sb_cmd)
+
             await asyncio.sleep(5) # 緩衝 (從 3s 改為 5s)
 
             # 開啟網頁
