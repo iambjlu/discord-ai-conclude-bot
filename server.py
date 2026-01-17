@@ -413,8 +413,8 @@ class MyClient(discord.Client):
                         if target_ch:
                             # 準備文字訊息
                             content_text = (
-                                f"📸 **網頁預覽**\n"
-                                f">>> 💬 @{msg.author.name} 傳送到 {msg.jump_url} ({msg.created_at.astimezone(tz).strftime('%H:%M')})\n"
+                                f"📸 **網頁預覽** {msg.created_at.astimezone(tz).strftime('%Y/%m/%d (%A) %H:%M')}\n"
+                                f">>> 💬 @{msg.author.name} 傳送到 {msg.jump_url}\n"
                                 f" 原始連結: <{url}>\n"
                             )
                             
