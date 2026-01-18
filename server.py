@@ -63,9 +63,9 @@ def get_settings():
         "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
 
         # --- 踩地雷 ---
-        "MINESWEEPER_ROWS": 6,           # 6Ｘ
-        "MINESWEEPER_COLS": 6,           # 6
-        "MINESWEEPER_MINES": 4,          # 4個地雷
+        "MINESWEEPER_ROWS": 6,           # 
+        "MINESWEEPER_COLS": 6,           # 
+        "MINESWEEPER_MINES": 2,          # 地雷
         
         # --- Gemini AI 總結 ---
         "RECENT_MSG_HOURS": 4.5,           # 抓取範圍 (X小時內)
