@@ -55,9 +55,9 @@ def get_settings():
     return {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
         "AI_SUMMARY_MODE": 1,          # AI總結
-        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
+        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
