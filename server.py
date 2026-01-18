@@ -54,7 +54,7 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 0,          # AI總結
+        "AI_SUMMARY_MODE": 1,          # AI總結
         "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
@@ -62,7 +62,7 @@ def get_settings():
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
         "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
-        "TZ": timezone(timedelta(hours=1)),    # 機器人運作時區
+        "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         # 每日金句固定於 00:xx 執行 (24小時一次)
 
         
