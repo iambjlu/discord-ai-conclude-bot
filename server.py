@@ -398,7 +398,7 @@ async def run_ai_summary(client, settings, secrets):
                                 "reason": str(e),
                                 "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                             }
-                            error_msg = f"## ⚠️ Gemini 發生錯誤```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
+                            error_msg = f"## ⚠️ Gemini 發生錯誤 ```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
                             await target_ch.send(f"{error_msg}\n{generate_choice_solver(settings)}")
                     else:
                          print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")
