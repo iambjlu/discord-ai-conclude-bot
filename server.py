@@ -179,27 +179,20 @@ def set_simulator_preferences(uuid):
 def generate_choice_solver():
     """生成選擇困難解決器 (骰子與硬幣)"""
     # 骰子 (1-6) x 10 (使用全形數字以保持等寬)
-    full_width_digits = ['１', '２', '３', '４', '５', '６']
+    full_width_digits = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣']
     dice_outcomes = [random.choice(full_width_digits) for _ in range(10)]
     dice_str = "  ".join([f"|| {x} ||" for x in dice_outcomes])
     
     # 硬幣 (正/反) x 10
-    coin_outcomes = ["正" if random.choice([True, False]) else "反" for _ in range(10)]
-    coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
-    
-    # 剪刀石頭布 x 10
-    rps_choices = ['✌️', '✊', '🖐️']
-    rps_outcomes = [random.choice(rps_choices) for _ in range(10)]
-    rps_str = "  ".join([f"|| {x} ||" for x in rps_outcomes])
+    coin_outcomes = ["⬆️" if random.choice([True, False]) else "⬇️" for _ in range(10)]
+    coin_str = " ".join([f"|| {x} ||" for x in coin_outcomes])
     
     return (
         "\n## 選擇困難解決器\n"
-        "🎲 拆個骰子吧\n"
-        f"{dice_str}\n"
-        "🪙 丟個硬幣吧\n"
+        "🎲 拆個骰子吧\n\n"
+        f"{dice_str}\n\n"
+        "🪙 丟個硬幣吧\n\n"
         f"{coin_str}\n"
-        "🫵 剪刀石頭布\n"
-        f"{rps_str}\n"
     )
 
 # ==========================================
