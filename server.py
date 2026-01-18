@@ -68,7 +68,7 @@ def get_settings():
         "MINESWEEPER_MINES": 2,          # 地雷
         
         # --- Gemini AI 總結 ---
-        "RECENT_MSG_HOURS": 4.5,           # 抓取範圍 (X小時內)
+        "RECENT_MSG_HOURS": 5,           # 抓取範圍 (X小時內)
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
