@@ -258,7 +258,7 @@ def generate_choice_solver(settings=None):
         f"{dice_str}\n\n"
         "🪙 丟個硬幣吧\n\n"
         f"{coin_str}\n\n"
-        "💣 踩個地雷吧\n\n"
+        f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
         f"{generate_minesweeper(rows, cols, mines)}\n"
     )
 
@@ -358,48 +358,63 @@ async def run_ai_summary(client, settings, secrets):
         target_ch_id = secrets["TARGET_CHANNEL_ID"]
         gemini_key = secrets["GEMINI_API_KEY"]
 
-        if final_messages_str and target_ch_id:
+        if target_ch_id:
             target_ch = client.get_channel(target_ch_id)
-            if target_ch and gemini_key:
-                print("   🤖 呼叫 Gemini 中...")
-                try:
-                    ai_client = genai.Client(api_key=gemini_key)
-                    prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
-                    
-                    response = ai_client.models.generate_content(
-                        model=settings["GEMINI_MODEL"],
-                        contents=prompt,
-                        config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
+            if target_ch:
+                if final_messages_str:
+                    if gemini_key:
+                        print("   🤖 呼叫 Gemini 中...")
+                        try:
+                            ai_client = genai.Client(api_key=gemini_key)
+                            prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
+                            
+                            response = ai_client.models.generate_content(
+                                model=settings["GEMINI_MODEL"],
+                                contents=prompt,
+                                config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
+                            )
+                            
+                            if response.text:
+                                print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
+                                start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
+                                end_str = now.strftime('%H:%M')
+                                report = (
+                                    f"# ✨ {hours} 小時重點摘要出爐囉！\n"
+                                    f"** 🕘 {start_str} ~ {end_str}**\n"
+                                    f"\n"
+                                    f"{response.text}\n"
+                                    f"\n"
+                                    f"> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
+                                    f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
+                                    f"{generate_choice_solver(settings)}"
+                                )
+                                await target_ch.send(report)
+                                print("   ✅ AI 總結已發送")
+                        except Exception as e:
+                            print(f"   ❌ Gemini 錯誤: {e}")
+                            error_payload = {
+                                "status": "Failed",
+                                "module": "Gemini AI Summary",
+                                "reason": str(e),
+                                "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                            error_msg = f"## ⚠️ Gemini 發生錯誤```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
+                            await target_ch.send(f"{error_msg}\n{generate_choice_solver(settings)}")
+                    else:
+                         print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")
+                else:
+                    # 無訊息的情況
+                    print("   ℹ️ 無新訊息，發送空報告")
+                    start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
+                    end_str = now.strftime('%H:%M')
+                    report = (
+                        f"# ✨ {hours} 小時重點摘要出爐囉！\n"
+                        f"** 🕘 {start_str} ~ {end_str}**\n\n"
+                        f"**(這段時間內沒有新訊息)**\n\n"
+                        f"{generate_choice_solver(settings)}"
                     )
-                    
-                    if response.text:
-                        print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
-                        start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
-                        end_str = now.strftime('%H:%M')
-                        report = (
-                            f"# ✨ {hours} 小時重點摘要出爐囉！\n"
-                            f"** 🕘 時間範圍：{start_str} ~ {end_str}**\n"
-                            f"\n"
-                            f"{response.text}\n"
-                            f"\n"
-                            f"> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
-                            f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
-                            f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
-                            f"{generate_choice_solver(settings)}"
-                        )
-                        await target_ch.send(report)
-                        print("   ✅ AI 總結已發送")
-                except Exception as e:
-                    print(f"   ❌ Gemini 錯誤: {e}")
-                    error_payload = {
-                        "status": "Failed",
-                        "module": "Gemini AI Summary",
-                        "reason": str(e),
-                        "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    error_msg = f"**⚠️ Gemini 發生錯誤**```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
-                    await target_ch.send(f"{error_msg}\n{generate_choice_solver(settings)}")
-            elif not target_ch:
+                    await target_ch.send(report)
+            else:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
         print(f"❌ AI Summary 執行錯誤: {e}")
