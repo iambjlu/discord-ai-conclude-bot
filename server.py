@@ -254,7 +254,7 @@ def generate_choice_solver(settings=None):
     
     return (
         "## 選擇困難解決器\n"
-        "🎲 拆個骰子吧\n\n"
+        "🎲 丟個骰子吧\n\n"
         f"{dice_str}\n\n"
         "🪙 丟個硬幣吧\n\n"
         f"{coin_str}\n\n"
