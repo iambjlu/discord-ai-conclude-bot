@@ -642,9 +642,9 @@ async def run_link_screenshot(client, settings, secrets):
 
             # 訊號(Cellular): 0~4
             # cell_bars = str(idx % 5)
-            cell_bars = str(random.randint(1, 4))
+            cell_bars = str(random.randint(2, 4))
             # Wifi: 0~3
-            wifi_bars = str(random.randint(1, 3))
+            wifi_bars = str(random.randint(2, 3))
             # wifi_bars = str(idx % 4)
             # 電池: 第一張 1% -> 最後一張 100%
             total_links = len(captured_links)
