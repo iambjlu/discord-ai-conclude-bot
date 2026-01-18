@@ -53,9 +53,9 @@ from renderer import ImageGenerator
 def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
-        # --- 功能開關 ---
+        # --- 功能開關 (預設全True) ---
         "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
-        "LINK_SCREENSHOT_ENABLED": False,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
+        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
         "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
         "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
         
