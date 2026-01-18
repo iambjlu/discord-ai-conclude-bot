@@ -273,6 +273,29 @@ def generate_choice_solver(settings=None):
 #              主要邏輯 (FEATURES)
 # ==========================================
 
+async def send_split_message(channel, text):
+    """Helper: 分段發送長訊息 (Discord limit 2000 chars)"""
+    if not text: return
+    LIMIT = 1900
+    
+    lines = text.split('\n')
+    buffer = ""
+    
+    for line in lines:
+        if len(buffer) + len(line) + 1 > LIMIT:
+            if buffer:
+                await channel.send(buffer)
+                buffer = ""
+            while len(line) > LIMIT:
+                await channel.send(line[:LIMIT])
+                line = line[LIMIT:]
+            buffer = line + "\n"
+        else:
+            buffer += line + "\n"
+            
+    if buffer:
+        await channel.send(buffer)
+
 async def run_ai_summary(client, settings, secrets):
     mode = settings.get("AI_SUMMARY_MODE", 2)
     if mode == 0:
@@ -375,6 +398,10 @@ async def run_ai_summary(client, settings, secrets):
         target_ch_id = secrets["TARGET_CHANNEL_ID"]
         gemini_key = secrets["GEMINI_API_KEY"]
 
+        if not target_ch_id:
+             print("   ⚠️ 未設定 TARGET_CHANNEL_ID，跳過 AI 總結發送")
+
+
         if target_ch_id:
             target_ch = client.get_channel(target_ch_id)
             if target_ch:
@@ -405,7 +432,7 @@ async def run_ai_summary(client, settings, secrets):
                                     f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
                                     f"{generate_choice_solver(settings)}"
                                 )
-                                await target_ch.send(report)
+                                await send_split_message(target_ch, report)
                                 print("   ✅ AI 總結已發送")
                         except Exception as e:
                             print(f"   ❌ Gemini 錯誤: {e}")
@@ -416,7 +443,7 @@ async def run_ai_summary(client, settings, secrets):
                                 "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                             }
                             error_msg = f"## ⚠️ Gemini 發生錯誤\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
-                            await target_ch.send(f"{error_msg}\n{generate_choice_solver(settings)}")
+                            await send_split_message(target_ch, f"{error_msg}\n{generate_choice_solver(settings)}")
                     else:
                          print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")
                 else:
