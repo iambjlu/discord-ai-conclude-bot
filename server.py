@@ -53,14 +53,23 @@ from renderer import ImageGenerator
 def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
-        # --- 功能開關 (預設全True) ---
-        "AI_SUMMARY_ENABLED": True,        # AI總結 (True=啟用, False=停用 | 預設 True)
-        "LINK_SCREENSHOT_ENABLED": True,   # 連結截圖 (True=啟用, False=停用 | 預設 True)
-        "DAILY_QUOTE_MIDNIGHT_ONLY": True, # 收集每日金句 (True=只在午夜, False=立即執行 | 預設 True)
-        "DAILY_QUOTE_IMAGE_ENABLED": True,  # 每日金句圖片生成(當金句收集時) (True=啟用, False=停用 | 預設 True)
+        # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
+        "AI_SUMMARY_MODE": 0,          # AI總結
+        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
+        "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
+        "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
         
-        # --- 每日金句 ---
-        "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
+        # --- 定時規則 (GMT+8) ---
+        "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
+        "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
+        "TZ": timezone(timedelta(hours=1)),    # 機器人運作時區
+        # 每日金句固定於 00:xx 執行 (24小時一次)
+
+        
+        # --- 抓取範圍 ---
+        "DAYS_AGO": 1,                   # 每日金句抓取範圍  (X天前) 0為今天, 1為昨天...
+        "RECENT_MSG_HOURS": 5,           # AI總結抓取範圍   (X小時內 需保留排程不準時的緩衝)
+        "LINK_SCREENSHOT_HOURS": 3,      # 連結截圖抓取範圍  (X小時內 需保留排程不準時的緩衝)
 
         # --- 踩地雷 ---
         "MINESWEEPER_ROWS": 6,           # 
@@ -68,7 +77,7 @@ def get_settings():
         "MINESWEEPER_MINES": 2,          # 地雷
         
         # --- Gemini AI 總結 ---
-        "RECENT_MSG_HOURS": 5,           # 抓取範圍 (X小時內)
+        
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
@@ -83,8 +92,6 @@ def get_settings():
 **提及的規劃**\n(請列出所有提到的時間規劃)\n
 **結論**\n(總結內容)\n
 """,
-        # --- 系統變數 ---
-        "TZ": timezone(timedelta(hours=8))
     }
 
 def get_secrets():
@@ -267,9 +274,19 @@ def generate_choice_solver(settings=None):
 # ==========================================
 
 async def run_ai_summary(client, settings, secrets):
-    if not settings["AI_SUMMARY_ENABLED"]:
-        print("⏹️ AI 總結功能已關閉，跳過。")
+    mode = settings.get("AI_SUMMARY_MODE", 2)
+    if mode == 0:
+        print("⏹️ AI 總結功能已停用 (Mode 0)，跳過。")
         return
+    
+    tz = settings["TZ"]
+    now = datetime.now(tz)
+
+    if mode == 1:
+        modulo = settings.get("AI_SUMMARY_SCHEDULE_MODULO", 4)
+        if now.hour % modulo != 0:
+            print(f"⏹️ [AI Summary] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時)，跳過。")
+            return
 
     hours = settings["RECENT_MSG_HOURS"]
     print(f">>> [AI Summary] 開始執行：抓取前 {hours} 小時訊息")
@@ -424,9 +441,15 @@ async def run_ai_summary(client, settings, secrets):
 async def run_daily_quote(client, settings, secrets):
     tz = settings["TZ"]
     now = datetime.now(tz)
-    is_allow_time = (now.hour == 0)
+    mode = settings.get("DAILY_QUOTE_MODE", 1)
+    if mode == 0:
+        print("⏹️ 每日金句功能已停用 (Mode 0)，跳過。")
+        return
 
-    if settings["DAILY_QUOTE_MIDNIGHT_ONLY"] and not is_allow_time:
+    is_midnight = (now.hour == 0)
+    
+    # Mode 1: 定時 (午夜)
+    if mode == 1 and not is_midnight:
         print(f"⏹️ [Daily Quote] 現在 {now.strftime('%H:%M')} 非執行時段 (00:xx)，跳過。")
         return
 
@@ -535,7 +558,8 @@ async def run_daily_quote(client, settings, secrets):
         
         # 呼叫生成器 (若開啟)
         img_buffer = None
-        if settings.get("DAILY_QUOTE_IMAGE_ENABLED", True):
+        # 1 或 2 皆視為啟用
+        if settings.get("DAILY_QUOTE_IMAGE_MODE", 2) > 0:
             print("   🎨 正在生成每日金句圖片...")
             generator = ImageGenerator()
             
@@ -586,15 +610,23 @@ async def run_daily_quote(client, settings, secrets):
 
 
 async def run_link_screenshot(client, settings, secrets):
-    if not settings["LINK_SCREENSHOT_ENABLED"]:
-        print("⏹️ 連結截圖功能已關閉，跳過。")
+    mode = settings.get("LINK_SCREENSHOT_MODE", 2)
+    if mode == 0:
+        print("⏹️ 連結截圖功能已停用 (Mode 0)，跳過。")
         return
-
-    hours = settings["RECENT_MSG_HOURS"]
-    print(f">>> [Link Screenshot] 開始執行：連結截圖 ({hours} 小時內)")
     
     tz = settings["TZ"]
     now = datetime.now(tz)
+
+    if mode == 1:
+        modulo = settings.get("LINK_SCREENSHOT_SCHEDULE_MODULO", 2)
+        if now.hour % modulo != 0:
+            print(f"⏹️ [Link Screenshot] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時)，跳過。")
+            return
+
+    hours = settings["LINK_SCREENSHOT_HOURS"]
+    print(f">>> [Link Screenshot] 開始執行：連結截圖 ({hours} 小時內)")
+    
     target_time_ago = now - timedelta(hours=hours)
 
     try:
@@ -635,6 +667,16 @@ async def run_link_screenshot(client, settings, secrets):
         
         if not target_ch:
             print(f"   ⚠️ 無預覽目標頻道 ({secrets.get('TARGET_PREVIEW_ID')})，僅截圖不發送")
+        else:
+            # 發送預告 Header
+            if captured_links:
+                start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
+                end_str = now.strftime('%H:%M')
+                header_msg = (
+                    f"# 🔗 {hours} 小時內連結預覽出爐囉！\n"
+                    f"** 🕘 {start_str} ~ {end_str} (共有{len(captured_links)}個連結)**\n"
+                )
+                await target_ch.send(header_msg)
 
         # 處理連結
         for idx, (url, msg) in enumerate(captured_links):
