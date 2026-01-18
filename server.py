@@ -429,7 +429,7 @@ async def run_ai_summary(client, settings, secrets):
                                     f"{response.text}\n"
                                     f"\n"
                                     f"> 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
-                                    f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
+                                    f"> 🤓 AI 總結內容僅供參考，敬請核實。\n"
                                     f"{generate_choice_solver(settings)}"
                                 )
                                 await send_split_message(target_ch, report)
