@@ -61,6 +61,11 @@ def get_settings():
         
         # --- 每日金句 ---
         "DAYS_AGO": 1,                   # 0為今天, 1為昨天...
+
+        # --- 踩地雷 ---
+        "MINESWEEPER_ROWS": 6,           # 6Ｘ
+        "MINESWEEPER_COLS": 6,           # 6
+        "MINESWEEPER_MINES": 4,          # 4個地雷
         
         # --- Gemini AI 總結 ---
         "RECENT_MSG_HOURS": 4.5,           # 抓取範圍 (X小時內)
@@ -176,8 +181,68 @@ def set_simulator_preferences(uuid):
         print(f"   ⚠️ 無法設定語系 (可能是路徑錯誤或權限問題): {e}")
 
 
-def generate_choice_solver():
+def generate_minesweeper(rows=6, cols=6, mines=3):
+    """生成踩地雷盤面 (Discord Spoils)"""
+    # 初始化盤面
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    mine_positions = set()
+    
+    # 佈置地雷
+    while len(mine_positions) < mines:
+        r, c = random.randint(0, rows-1), random.randint(0, cols-1)
+        if (r, c) not in mine_positions:
+            mine_positions.add((r, c))
+            grid[r][c] = -1  # -1 代表地雷
+            
+    # 計算周圍數字
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == -1: continue
+            
+            # 檢查八方
+            count = 0
+            for dr in [-1, 0, 1]:
+                for dc in [-1, 0, 1]:
+                    if dr == 0 and dc == 0: continue
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols:
+                        if grid[nr][nc] == -1:
+                            count += 1
+            grid[r][c] = count
+            
+    # 轉換為 Emoji 字串
+    # 對照表
+    num_map = {
+        -1: '💣',
+        0: '0️⃣',
+        1: '1️⃣',
+        2: '2️⃣',
+        3: '3️⃣',
+        4: '4️⃣',
+        5: '5️⃣',
+        6: '6️⃣',
+        7: '7️⃣',
+        8: '8️⃣'
+    }
+    
+    result_str = ""
+    for r in range(rows):
+        line_items = []
+        for c in range(cols):
+            val = grid[r][c]
+            emoji = num_map.get(val, '❓')
+            line_items.append(f"||{emoji}||")
+        result_str += "".join(line_items) + "\n"
+        
+    return result_str.strip()
+
+def generate_choice_solver(settings=None):
     """生成選擇困難解決器 (骰子與硬幣)"""
+    # 預設值 (如果沒有傳入 settings)
+    rows = settings["MINESWEEPER_ROWS"] if settings else 6
+    cols = settings["MINESWEEPER_COLS"] if settings else 6
+    mines = settings["MINESWEEPER_MINES"] if settings else 7
+
     # 骰子 (1-6) x 10 (使用全形數字以保持等寬)
     full_width_digits = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣']
     dice_outcomes = [random.choice(full_width_digits) for _ in range(10)]
@@ -185,14 +250,16 @@ def generate_choice_solver():
     
     # 硬幣 (正/反) x 10
     coin_outcomes = ["⬆️" if random.choice([True, False]) else "⬇️" for _ in range(10)]
-    coin_str = " ".join([f"|| {x} ||" for x in coin_outcomes])
+    coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
     
     return (
-        "\n## 選擇困難解決器\n"
+        "## 選擇困難解決器\n"
         "🎲 拆個骰子吧\n\n"
         f"{dice_str}\n\n"
         "🪙 丟個硬幣吧\n\n"
-        f"{coin_str}\n"
+        f"{coin_str}\n\n"
+        "💣 踩個地雷吧\n\n"
+        f"{generate_minesweeper(rows, cols, mines)}\n"
     )
 
 # ==========================================
@@ -315,9 +382,10 @@ async def run_ai_summary(client, settings, secrets):
                             f"\n"
                             f"{response.text}\n"
                             f"\n"
-                            f">>> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
-                            f"🤓 AI總結內容僅供參考，敬請核實。\n"
-                            f"{generate_choice_solver()}"
+                            f"> 🤖 重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
+                            f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
+                            f"> 🤓 AI總結內容僅供參考，敬請核實。\n"
+                            f"{generate_choice_solver(settings)}"
                         )
                         await target_ch.send(report)
                         print("   ✅ AI 總結已發送")
@@ -330,7 +398,7 @@ async def run_ai_summary(client, settings, secrets):
                         "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                     }
                     error_msg = f"**⚠️ Gemini 發生錯誤**```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
-                    await target_ch.send(f"{error_msg}\n{generate_choice_solver()}")
+                    await target_ch.send(f"{error_msg}\n{generate_choice_solver(settings)}")
             elif not target_ch:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
