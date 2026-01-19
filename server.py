@@ -939,6 +939,13 @@ if __name__ == "__main__":
     settings_data = get_settings()
     secrets_data = get_secrets()
 
+    print("\n=== 目前排程模式設定 ===")
+    print(f"GitHub Actions 環境: {os.getenv('GITHUB_ACTIONS') == 'true'}")
+    print(f"AI Summary Mode: {settings_data['AI_SUMMARY_MODE']} (Force: {os.getenv('FORCE_AI_SUMMARY', 'false')})")
+    print(f"Daily Quote Mode: {settings_data['DAILY_QUOTE_MODE']} (Force: {os.getenv('FORCE_DAILY_QUOTE', 'false')})")
+    print(f"Link Screenshot Mode: {settings_data['LINK_SCREENSHOT_MODE']} (Force: {os.getenv('FORCE_LINK_SCREENSHOT', 'false')})")
+    print("========================\n")
+
     if not secrets_data['TOKEN']:
         print("❌ 無法執行：缺少 TOKEN")
     else:
