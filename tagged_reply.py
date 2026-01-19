@@ -114,48 +114,47 @@ class TaggedResponseBot(discord.Client):
             await self.check_ota_status_on_startup()
 
     async def check_ota_status_on_startup(self):
-        """檢查所有頻道最新訊息，看是否剛執行完更新"""
+        """檢查所有頻道最新訊息，找出最晚發出更新指令的頻道並回報"""
         keyword = self.settings.get("EXEC_COMMAND_KEYWORD", "update_bot")
         print(f"🔍 正在檢查是否有頻道在等待更新回報 (關鍵字: {keyword})...")
         
+        target_message = None
+
         for guild in self.guilds:
             for channel in guild.text_channels:
-                # 檢查機器人是否有權限在該頻道發言與讀取紀錄
                 perms = channel.permissions_for(guild.me)
                 if not perms.send_messages or not perms.read_message_history:
                     continue
 
                 try:
-                    # 取得最後一則訊息
                     async for last_msg in channel.history(limit=1):
-                        # 檢查是否標註了機器人
                         is_triggered = self.user in last_msg.mentions
-                        
-                        # 檢查內容
                         content_clean = last_msg.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
                         
                         if is_triggered and keyword in content_clean:
-                            print(f"✅ 在 #{channel.name} 偵測到更新指令，發送回報...")
-                            
-                            # 取得 Git 資訊
-                            try:
-                                commit_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True).strip()
-                                commit_time = subprocess.check_output(["git", "log", "-1", "--date=format:%Y-%m-%d %H:%M:%S", "--pretty=%cd"], text=True).strip()
-                            except Exception as e:
-                                commit_msg = "無法取得更新內容"
-                                commit_time = "未知"
-                                print(f"⚠️ 取得 Git 資訊失敗: {e}")
-
-                            welcome_msg = (
-                                f"嗨，我回來了！\n"
-                                f"來看看我有什麼新功能吧：\n"
-                                f"> **{commit_msg}**\n"
-                                f"> 更新時間：`{commit_time}`"
-                            )
-                            await channel.send(welcome_msg)
-                except Exception as e:
-                    # 個別頻道失敗不影響整盤，跳過即可
+                            # 紀錄訊息，若發現更晚的訊息則替換 (確保只在「最後發出指令」的那個頻道回報)
+                            if not target_message or last_msg.created_at > target_message.created_at:
+                                target_message = last_msg
+                except:
                     continue
+        
+        if target_message:
+            print(f"✅ 在 #{target_message.channel.name} 偵測到最後一次更新指令，發送回報...")
+            try:
+                commit_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True).strip()
+                commit_time = subprocess.check_output(["git", "log", "-1", "--date=format:%Y-%m-%d %H:%M:%S", "--pretty=%cd"], text=True).strip()
+            except Exception as e:
+                commit_msg = "無法取得更新內容"
+                commit_time = "未知"
+                print(f"⚠️ 取得 Git 資訊失敗: {e}")
+
+            welcome_msg = (
+                f"嗨，我回來了！\n"
+                f"來看看我有什麼新功能吧：\n"
+                f"> **{commit_msg}**\n"
+                f"> 更新時間：{commit_time}"
+            )
+            await target_message.channel.send(welcome_msg)
 
     async def on_message(self, message):
         # 1. 忽略自己的訊息
