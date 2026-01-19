@@ -153,7 +153,7 @@ class TaggedResponseBot(discord.Client):
 
             welcome_msg = (
                 f"# 嗨，我回來了！\n"
-                f"-# 🤖 來看看我有什麼新功能吧\n"
+                f"來看看我有什麼新功能吧\n"
                 f"### 最新功能：\n{commit_msg}\n"
                 f"### 更新時間：\n{commit_time}\n"
             )
