@@ -267,6 +267,7 @@ class TaggedResponseBot(discord.Client):
                     # 用於儲存要給 AI 的所有訊息 (msg_id -> (time, formated_text))
                     # 使用 dict 是為了稍後去重
                     all_collected_msgs = {} 
+                    author_mapping = {} # 記錄作者用戶名與暱稱的對應關係
                     
                     if ref_msg_ctx and message.reference and message.reference.message_id:
                          try:
@@ -277,6 +278,9 @@ class TaggedResponseBot(discord.Client):
                             async for h_msg in message.channel.history(around=center_msg, limit=ref_limit):
                                 if not h_msg.content.strip() and not h_msg.attachments: continue
                                 
+                                # 記錄作者資訊
+                                author_mapping[h_msg.author.id] = (h_msg.author.name, h_msg.author.display_name)
+
                                 # 格式化 logic 抽取
                                 h_author = h_msg.author.display_name
                                 h_time = h_msg.created_at.astimezone(self.settings.get("TZ")).strftime("%H:%M")
@@ -316,6 +320,9 @@ class TaggedResponseBot(discord.Client):
                         # 跳過指令本身
                         if msg.id == message.id: continue
                         
+                        # 記錄作者資訊
+                        author_mapping[msg.author.id] = (msg.author.name, msg.author.display_name)
+
                         content = msg.content
 
                         # 處理內容截斷
@@ -407,8 +414,15 @@ class TaggedResponseBot(discord.Client):
 
                     # 拼接對話內容
                     full_context_str = "\n".join(sorted_lines)
+                    
+                    # 生成用戶對照表
+                    if author_mapping:
+                        mapping_lines = [f"- 用戶: {name}, 暱稱: {disp}" for uid, (name, disp) in author_mapping.items()]
+                        mapping_section = "\n[用戶與伺服器暱稱對照]\n" + "\n".join(mapping_lines) + "\n"
+                        full_context_str = mapping_section + "\n" + full_context_str
+
                     print(f"   📄 總共收集到 {len(sorted_lines)} 則訊息 (已去重)")
-                    print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
+                    # print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
 
                     # 5. 呼叫 AI 模型 (嘗試優先順序列表)
                     if not self.genai_client:

@@ -12,10 +12,26 @@ on:
     # 台灣時間 16:00 = UTC 08:00
     # 台灣時間 20:00 = UTC 12:00
     # 因為間隔剛好是 4 小時，且 8 是 4 的倍數，所以 cron 表達式剛好一樣都是 0,4,8,12,16,20
-    - cron: "4 0,2,4,6,8,10,12,14,16,18,20,22 * * *"
+    - cron: "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *"
 
   # 允許手動從 Actions 頁面觸發
   workflow_dispatch:
+    inputs:
+      force_ai_summary:
+        description: "強制執行 AI 總結"
+        required: false
+        default: false
+        type: boolean
+      force_daily_quote:
+        description: "強制執行 每日金句"
+        required: false
+        default: false
+        type: boolean
+      force_link_screenshot:
+        description: "強制執行 連結截圖"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   run-bot:
@@ -46,6 +62,9 @@ jobs:
           SOURCE_CHANNEL_IDS: ${{ secrets.SOURCE_CHANNEL_IDS }}
           TARGET_CHANNEL_ID: ${{ secrets.TARGET_CHANNEL_ID }}
           TARGET_PREVIEW_ID: ${{ secrets.TARGET_PREVIEW_ID }}
+          FORCE_AI_SUMMARY: ${{ github.event.inputs.force_ai_summary || 'false' }}
+          FORCE_DAILY_QUOTE: ${{ github.event.inputs.force_daily_quote || 'false' }}
+          FORCE_LINK_SCREENSHOT: ${{ github.event.inputs.force_link_screenshot || 'false' }}
           PYTHONUNBUFFERED: "1"
         run: |
           python server.py

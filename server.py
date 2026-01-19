@@ -65,6 +65,7 @@ def get_settings():
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
         "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
+        "SCHEDULE_DELAY_TOLERANCE": 1,         # 允許延遲執行的時數 (應對 GH Actions 延遲，單位: 小時)
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         # 每日金句固定於 00:xx 執行 (24小時一次)
 
@@ -311,11 +312,15 @@ async def run_ai_summary(client, settings, secrets):
     
     tz = settings["TZ"]
     now = datetime.now(tz)
+    force_run = os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true"
 
-    if mode == 1:
+    if mode == 1 and not force_run:
         modulo = settings.get("AI_SUMMARY_SCHEDULE_MODULO", 4)
-        if now.hour % modulo != 0:
-            print(f"⏹️ [AI Summary] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時)，跳過。")
+        delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
+        # 檢查是否在排程時段內 (允許一定程度的延遲)
+        # 例如 modulo=4, delay=1, 則 0,1, 4,5, 8,9 ... 點都會執行
+        if (now.hour % modulo) > delay_tolerance:
+            print(f"⏹️ [AI Summary] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時，允許延遲 {delay_tolerance}h)，跳過。")
             return
 
     hours = settings["RECENT_MSG_HOURS"]
@@ -325,6 +330,7 @@ async def run_ai_summary(client, settings, secrets):
     now = datetime.now(tz)
     target_time_ago = now - timedelta(hours=hours)
     collected_output = []
+    author_mapping = {} # 記錄作者用戶名與暱稱的對應關係
 
     try:
         # 時間格式
@@ -341,6 +347,9 @@ async def run_ai_summary(client, settings, secrets):
             channel_msgs = []
             
             async for msg in ch.history(after=target_time_ago, limit=None):
+                # 記錄作者資訊
+                author_mapping[msg.author.id] = (msg.author.name, msg.author.display_name)
+
                 content = msg.content
                 # 截斷標記
                 ignore_token = settings.get("IGNORE_TOKEN", "> 🤖 ")
@@ -413,7 +422,13 @@ async def run_ai_summary(client, settings, secrets):
                 collected_output.append(f"--[#{ch.name}]")
                 collected_output.extend(channel_msgs)
 
-        final_messages_str = "\n".join(collected_output)
+        # 生成用戶對照表
+        mapping_section = ""
+        if author_mapping:
+            mapping_lines = [f"- 用戶: {name}, 暱稱: {disp}" for uid, (name, disp) in author_mapping.items()]
+            mapping_section = "[參與對話的用戶與伺服器暱稱對照表]\n" + "\n".join(mapping_lines) + "\n\n"
+
+        final_messages_str = mapping_section + "\n".join(collected_output)
         print(f"--- 收集到的訊息 ---\n{final_messages_str}\n--------------------")
         print("   訊息收集完成，準備進行 AI 總結...")
 
@@ -514,17 +529,20 @@ async def run_ai_summary(client, settings, secrets):
 async def run_daily_quote(client, settings, secrets):
     tz = settings["TZ"]
     now = datetime.now(tz)
-    mode = settings.get("DAILY_QUOTE_MODE", 1)
+    force_run = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
+
     if mode == 0:
         print("⏹️ 每日金句功能已停用 (Mode 0)，跳過。")
         return
 
-    is_midnight = (now.hour == 0)
-    
     # Mode 1: 定時 (午夜)
-    if mode == 1 and not is_midnight:
-        print(f"⏹️ [Daily Quote] 現在 {now.strftime('%H:%M')} 非執行時段 (00:xx)，跳過。")
-        return
+    if mode == 1 and not force_run:
+        delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
+        # 允許在 00:xx ~ 01:xx 執行 (應對 GH Actions 延遲)
+        is_scheduled_time = (0 <= now.hour <= delay_tolerance)
+        if not is_scheduled_time:
+            print(f"⏹️ [Daily Quote] 現在 {now.strftime('%H:%M')} 非執行時段 (00:00~{delay_tolerance:02d}:59)，跳過。")
+            return
 
     print(">>> [Daily Quote] 開始執行：每日金句")
     target_start = (now - timedelta(days=settings["DAYS_AGO"])).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -690,11 +708,13 @@ async def run_link_screenshot(client, settings, secrets):
     
     tz = settings["TZ"]
     now = datetime.now(tz)
+    force_run = os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true"
 
-    if mode == 1:
+    if mode == 1 and not force_run:
         modulo = settings.get("LINK_SCREENSHOT_SCHEDULE_MODULO", 2)
-        if now.hour % modulo != 0:
-            print(f"⏹️ [Link Screenshot] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時)，跳過。")
+        delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
+        if (now.hour % modulo) > delay_tolerance:
+            print(f"⏹️ [Link Screenshot] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時，允許延遲 {delay_tolerance}h)，跳過。")
             return
 
     hours = settings["LINK_SCREENSHOT_HOURS"]
