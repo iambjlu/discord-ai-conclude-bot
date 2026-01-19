@@ -365,7 +365,7 @@ class TaggedResponseBot(discord.Client):
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
                             f"> 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n"
                             f"> 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
-                            f"> 📖 回應內容不會參考附件內容、其他頻道、網路資料、伺服器內暱稱、訊息表情。"
+                            f"> 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
                         await message.reply(reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                         print("   ✅ 已傳送回應")
@@ -409,6 +409,7 @@ if __name__ == "__main__":
             # 設定 Intents
             intents = discord.Intents.default()
             intents.message_content = True # 必須啟用才能讀取訊息內容
+            intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
             
             client = TaggedResponseBot(settings=settings_data, secrets=secrets_data, intents=intents)
             client.run(secrets_data['TOKEN'])

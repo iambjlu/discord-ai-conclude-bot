@@ -875,6 +875,7 @@ if __name__ == "__main__":
         intents = discord.Intents.default()
         intents.message_content = True
         intents.reactions = True
+        intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
         
         client = MyClient(settings=settings_data, secrets=secrets_data, intents=intents)
         client.run(secrets_data['TOKEN'])
