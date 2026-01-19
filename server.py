@@ -104,23 +104,34 @@ def get_settings():
 
     # GitHub Actions 環境強制覆寫 (避免本地測試改壞 Config 影響線上)
     if os.getenv('GITHUB_ACTIONS') == 'true':
-        print("🚀 偵測到 GitHub Actions 環境，強制將排程模式設為 1 (定時)")
-        settings["AI_SUMMARY_MODE"] = 1
-        settings["DAILY_QUOTE_MODE"] = 1
-        settings["LINK_SCREENSHOT_MODE"] = 1
-
-        # 若有強制執行旗標，則將對應模式改為 2 (強制啟用)
-        if os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true":
-            settings["AI_SUMMARY_MODE"] = 2
-            print("💪 強制執行 AI 總結 (Mode 2)")
+        force_ai = os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true"
+        force_quote = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
+        force_link = os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true"
         
-        if os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true":
-            settings["DAILY_QUOTE_MODE"] = 2
-            print("💪 強制執行 每日金句 (Mode 2)")
+        # 只要有任何一個強制執行旗標被打開
+        if force_ai or force_quote or force_link:
+            print("🚀 偵測到手動強制執行，將覆寫排程設定：")
+            # 1. 先全部關閉 (設為 0)
+            settings["AI_SUMMARY_MODE"] = 0
+            settings["DAILY_QUOTE_MODE"] = 0
+            settings["LINK_SCREENSHOT_MODE"] = 0
             
-        if os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true":
-            settings["LINK_SCREENSHOT_MODE"] = 2
-            print("💪 強制執行 連結截圖 (Mode 2)")
+            # 2. 針對被開啟的項目設為 2 (強制啟用)
+            if force_ai:
+                settings["AI_SUMMARY_MODE"] = 2
+                print("   💪 強制執行 AI 總結 (Mode 2)")
+            if force_quote:
+                settings["DAILY_QUOTE_MODE"] = 2
+                print("   💪 強制執行 每日金句 (Mode 2)")
+            if force_link:
+                settings["LINK_SCREENSHOT_MODE"] = 2
+                print("   💪 強制執行 連結截圖 (Mode 2)")
+        else:
+            # 純排程模式 (無任何強制旗標) -> 全部設為 1 (定時)
+            print("🕒 GitHub Actions 排程模式：全部設為定時檢查 (Mode 1)")
+            settings["AI_SUMMARY_MODE"] = 1
+            settings["DAILY_QUOTE_MODE"] = 1
+            settings["LINK_SCREENSHOT_MODE"] = 1
     
     return settings
 
