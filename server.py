@@ -70,7 +70,7 @@ def get_settings():
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
         "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
-        "WEATHER_SCHEDULE_MODULO": 4,          # 天氣預報頻率 (每N小時)
+        "WEATHER_SCHEDULE_MODULO": 6,          # 天氣預報頻率 (每N小時)
         "SCHEDULE_DELAY_TOLERANCE": 1,         # 允許延遲執行的時數 (應對 GH Actions 延遲，單位: 小時)
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         # 每日金句固定於 00:xx 執行 (24小時一次)
