@@ -153,10 +153,12 @@ class TaggedResponseBot(discord.Client):
                             print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行指令: {cmd}")
                             try:
                                 # 使用 Popen 非同步執行，避免卡住 Bot
-                                os.system(cmd, shell=True)
-                                await message.reply(f"🚀 收到關鍵字，正在執行更新機器人", allowed_mentions=discord.AllowedMentions.none())
+                                await message.reply(f"🚀 收到關鍵字，正在執行更新機器人", ...)
+                                os.system(cmd)
+                                print("👋 正在關閉舊程序以進行更新...")
+                                sys.exit(0) # 關閉自己
                                 # 如果只需要執行指令而不需 AI 回應，可以在此 return
-                                # return
+                                return
                             except Exception as e:
                                 await message.reply(f"❌ 執行指令失敗: {e}")
                     
