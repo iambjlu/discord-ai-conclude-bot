@@ -54,7 +54,11 @@ def get_settings():
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
         "TAGGED_REPLY_PROMPT_TEMPLATE": """你是一個機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識截止於2024/8，時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複用戶的句子。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemma-3-27b-it"],
+        "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
+        "DEFAULT_TOKEN_LIMIT": 3000,
+        "SMARTER_MODE_KEYWORD": "/聰明模型", 
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemma-3-27b-it"],
+        "SMARTER_TOKEN_LIMIT": 20000,
     }
 
 def get_secrets():
@@ -468,15 +472,26 @@ class TaggedResponseBot(discord.Client):
                     used_model = None
                     last_error = None
 
-                    for model_name in self.model_priority_list:
-                        print(f"   🤖 嘗試使用模型: {model_name} ...")
+                    # 決定使用哪一組模型清單與 Token 上限
+                    current_model_list = self.model_priority_list
+                    current_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
+                    
+                    # 檢查是否觸發 Smarter Mode
+                    smarter_keyword = self.settings.get("SMARTER_MODE_KEYWORD", "/research")
+                    if smarter_keyword and smarter_keyword in message.content: # 這裡檢查原始 content 即可
+                         print(f"   🧠 偵測到 '{smarter_keyword}'，切換至 Smarter Model 清單")
+                         current_model_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", current_model_list)
+                         current_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 8000)
+
+                    for model_name in current_model_list:
+                        print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {current_token_limit})...")
                         try:
-                            print(prompt)
+                            # print(prompt) # 減少 Log 雜訊
                             response = self.genai_client.models.generate_content(
                                 model=model_name,
                                 contents=prompt,
                                 config=types.GenerateContentConfig(
-                                    max_output_tokens=3000,
+                                    max_output_tokens=current_token_limit,
                                     temperature=1 
                                 )
                             )
@@ -499,10 +514,17 @@ class TaggedResponseBot(discord.Client):
                         if is_reply_mode and ref_msg_ctx:
                             extra_info = f" + 被回覆訊息前後 {ref_limit} 則"
 
+                        if "gemini" in used_model.lower():
+                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。"
+                        elif "flash-thinking" in used_model.lower(): # 特別處理 Thinking Model
+                             footer_model_text = f"> -# 🧠 以上深度思考訊息由 Google Gemini 實驗性模型「{used_model}」驅動。"
+                        else:
+                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。"
+
                         footer = (
                             f"\n"
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
-                            f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n"
+                            f"> -# {footer_model_text}\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
