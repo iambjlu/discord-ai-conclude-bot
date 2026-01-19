@@ -53,12 +53,14 @@ def get_settings():
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
-        "TAGGED_REPLY_PROMPT_TEMPLATE": """你是一個機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識截止於2024/8，時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複用戶的句子。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
+        "TAGGED_REPLY_PROMPT_TEMPLATE": """你是機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識不是最新，因此時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複用戶的句子。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應{think_on_not}，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
         "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
         "DEFAULT_TOKEN_LIMIT": 3000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
         "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemma-3-27b-it"],
-        "SMARTER_TOKEN_LIMIT": 20000,
+        "SMARTER_TOKEN_LIMIT": 120000,
+        "SMARTER_TOTAL_MSG_LIMIT": 100,
+        "SMARTER_MAX_MSG_LENGTH": 150,
     }
 
 def get_secrets():
@@ -104,7 +106,7 @@ class TaggedResponseBot(discord.Client):
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
 
         self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemma-3-27b-it"])
-        self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "> -# 🤖")
+        self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
 
     async def on_ready(self):
         print('-------------------------------------------')
@@ -227,7 +229,19 @@ class TaggedResponseBot(discord.Client):
                     # content_clean 已在上方算過，此處不需要重複計算 (除非需要更複雜的處理)
 
                     
-                    total_limit = self.settings.get("TOTAL_MSG_LIMIT", 150)
+                    # 3. 設定訊息抓取數量 (動態分配)
+                    total_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
+                    msg_max_length_limit = self.settings.get("MAX_MSG_LENGTH", 100)
+
+                    # 檢查是否觸發 Smarter Mode (提早檢查以調整抓取範圍)
+                    smarter_keywords = self.settings.get("SMARTER_MODE_KEYWORD", "/聰明模型")
+                    is_smarter_mode = smarter_keywords and (smarter_keywords in message.content)
+                    
+                    if is_smarter_mode:
+                        total_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
+                        msg_max_length_limit = self.settings.get("SMARTER_MAX_MSG_LENGTH", 5000)
+                        print(f"   🧠 偵測到 '{smarter_keywords}'，提升抓取限制: {total_limit} 則, 長度 {msg_max_length_limit}")
+
                     msg_limit = total_limit # 預設全部給最新訊息 (若無回覆)
                     ref_limit = 0
                     
@@ -249,8 +263,8 @@ class TaggedResponseBot(discord.Client):
                             # 嘗試抓取被回覆的原始訊息
                             ref_msg = await message.channel.fetch_message(message.reference.message_id)
                             ref_text = ref_msg.content
-                            if len(ref_text) > self.settings.get("MAX_MSG_LENGTH", 150):
-                                ref_text = ref_text[:self.settings.get("MAX_MSG_LENGTH", 150)] + "..."
+                            if len(ref_text) > msg_max_length_limit:
+                                ref_text = ref_text[:msg_max_length_limit] + "..."
                             ref_author = ref_msg.author.display_name
                             
                             # 若有附件或 Embeds，稍微註記
@@ -294,8 +308,8 @@ class TaggedResponseBot(discord.Client):
                                 h_time = h_msg.created_at.astimezone(self.settings.get("TZ")).strftime("%H:%M")
                                 h_content = h_msg.content.replace(self.ignore_after_token, "").strip()
                                 
-                                if len(h_content) > self.settings.get("MAX_MSG_LENGTH", 150):
-                                    h_content = h_content[:self.settings.get("MAX_MSG_LENGTH", 150)] + "..."
+                                if len(h_content) > msg_max_length_limit:
+                                    h_content = h_content[:msg_max_length_limit] + "..."
                                 
                                 if h_msg.attachments: 
                                     show_att = self.settings.get("SHOW_ATTACHMENTS", False)
@@ -397,8 +411,8 @@ class TaggedResponseBot(discord.Client):
                         created_at_local = msg.created_at.astimezone(tz).strftime(time_fmt)
                         
                         # 長度截斷
-                        if len(content) > self.settings.get("MAX_MSG_LENGTH", 150):
-                            content = content[:self.settings.get("MAX_MSG_LENGTH", 150)] + "..."
+                        if len(content) > msg_max_length_limit:
+                            content = content[:msg_max_length_limit] + "..."
 
                         # 決定最終顯示名稱 (一般用戶需截斷，Bot 不需)
                         if is_bot_msg:
@@ -482,6 +496,9 @@ class TaggedResponseBot(discord.Client):
                          print(f"   🧠 偵測到 '{smarter_keyword}'，切換至 Smarter Model 清單")
                          current_model_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", current_model_list)
                          current_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 8000)
+                         think_on_not = "並請認真思考。"
+                    else:
+                        think_on_not = ""
 
                     for model_name in current_model_list:
                         print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {current_token_limit})...")
@@ -516,15 +533,13 @@ class TaggedResponseBot(discord.Client):
 
                         if "gemini" in used_model.lower():
                             footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。"
-                        elif "flash-thinking" in used_model.lower(): # 特別處理 Thinking Model
-                             footer_model_text = f"> -# 🧠 以上深度思考訊息由 Google Gemini 實驗性模型「{used_model}」驅動。"
                         else:
-                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。"
+                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試存取更聰明的模型"
 
                         footer = (
                             f"\n"
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
-                            f"> -# {footer_model_text}\n"
+                            f"{footer_model_text}\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
