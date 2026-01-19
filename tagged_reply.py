@@ -145,7 +145,7 @@ class TaggedResponseBot(discord.Client):
             print(f"✅ 在 #{target_message.channel.name} 偵測到最後一次更新指令，發送回報...")
             try:
                 commit_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True).strip()
-                commit_time = subprocess.check_output(["git", "log", "-1", "--date=format:%Y-%m-%d %H:%M:%S", "--pretty=%cd"], text=True).strip()
+                commit_time = subprocess.check_output(["git", "log", "-1", "--date=format:%Y-%m-%d %H:%M:%S %z", "--pretty=%cd"], text=True).strip()
             except Exception as e:
                 commit_msg = "無法取得更新內容"
                 commit_time = "未知"
@@ -153,7 +153,7 @@ class TaggedResponseBot(discord.Client):
 
             welcome_msg = (
                 f"# 嗨，我回來了！\n"
-                f"來看看我有什麼新功能吧：\n"
+                f"來看看我有什麼新功能吧\n"
                 f"### 最新功能：\n{commit_msg}\n"
                 f"### 更新時間：\n{commit_time}\n"
             )
