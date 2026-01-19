@@ -53,7 +53,6 @@ def get_settings():
         "IGNORE_TOKEN": "> -# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
-        "EXEC_COMMAND_ENV_NAME": "DEPLOY_COMMAND", # 指令來源的環境變數名稱
         "TAGGED_REPLY_PROMPT_TEMPLATE": """你是一個機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識截止於2024/8，時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
         "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
     }
@@ -140,20 +139,28 @@ class TaggedResponseBot(discord.Client):
             content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
             
             if self.settings.get("ENABLE_EXEC_COMMAND", False) and self.settings.get("EXEC_COMMAND_KEYWORD", "") in content_clean:
-                env_var_name = self.settings.get("EXEC_COMMAND_ENV_NAME", "")
-                cmd = os.getenv(env_var_name)
-                if cmd:
-                    print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行指令: {cmd}")
-                    try:
-                        # 使用 reply 告知使用者，然後直接執行
-                        await message.reply(f"⚙️ 機器人正在檢查 OTA 更新\n如果有的話會立即安裝，請稍候。\n安裝完成後可以在「成員」列表看到我在線上(🟢)\n> -# 提示：你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新")
-                        os.system(cmd)
-                        # 執行指令後直接 return，避免進入下方的 AI 回應與歷史抓取邏輯
-                        return
-                    except Exception as e:
-                        print(f"❌ 執行指令失敗: {e}")
-                        await message.reply(f"❌ 執行指令失敗: {e}")
-                        return
+                print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行更新並重啟")
+                try:
+                    # 使用 reply 告知使用者，然後直接執行
+                    await message.reply(f"⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n安裝完成後可以在「成員」列表看到我在線上(🟢)\n> -# 提示：你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新並重啟機器人")
+                    
+                    # 🚀 重要：先優雅地關閉 Bot 連線，避免 Gateway 噴錯
+                    print("🔄 正在關閉 Discord 連線並準備重啟...")
+                    await self.close()
+
+                    # 1. 執行 git pull (此時已斷線，不再受心跳包檢查影響)
+                    print("🔄 執行 git pull...")
+                    os.system("git pull")
+                    
+                    # 2. 重新啟動行程
+                    print("🔄 正在重啟行程...")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    
+                    return
+                except Exception as e:
+                    print(f"❌ 更新或重啟失敗: {e}")
+                    await message.reply(f"❌ 更新或重啟失敗: {e}")
+                    return
 
             print(f"📨 收到觸發 (Mention/Reply): {message.author} 在 #{message.channel}")
             
