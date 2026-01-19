@@ -219,6 +219,12 @@ class TaggedResponseBot(discord.Client):
                     await message.reply(f"❌ 更新或重啟失敗: {e}")
                     return
 
+            # 判斷是否啟動 Smarter Mode
+            smarter_keywords = self.settings.get("SMARTER_MODE_KEYWORD", "/聰明模型")
+            is_smarter_mode = smarter_keywords and (smarter_keywords in content_clean)
+            if is_smarter_mode:
+                print(f"🧠 偵測到 Smarter Mode 關鍵字: {smarter_keywords}")
+
             print(f"📨 收到觸發 (Mention/Reply): {message.author} 在 #{message.channel}")
             
             # 顯示正在輸入...
@@ -233,14 +239,10 @@ class TaggedResponseBot(discord.Client):
                     total_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
                     msg_max_length_limit = self.settings.get("MAX_MSG_LENGTH", 100)
 
-                    # 檢查是否觸發 Smarter Mode (提早檢查以調整抓取範圍)
-                    smarter_keywords = self.settings.get("SMARTER_MODE_KEYWORD", "/聰明模型")
-                    is_smarter_mode = smarter_keywords and (smarter_keywords in message.content)
-                    
                     if is_smarter_mode:
                         total_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
                         msg_max_length_limit = self.settings.get("SMARTER_MAX_MSG_LENGTH", 5000)
-                        print(f"   🧠 偵測到 '{smarter_keywords}'，提升抓取限制: {total_limit} 則, 長度 {msg_max_length_limit}")
+                        print(f"   🧠 Smarter Mode 啟用，提升抓取限制: {total_limit} 則, 長度 {msg_max_length_limit}")
 
                     msg_limit = total_limit # 預設全部給最新訊息 (若無回覆)
                     ref_limit = 0
@@ -474,31 +476,31 @@ class TaggedResponseBot(discord.Client):
                     if not final_suffix and prev_msg_content:
                         final_suffix = prev_msg_content
 
+                    # 決定使用哪一組模型清單與 Token 上限 (順便決定 think_on_not)
+                    current_model_list = self.model_priority_list
+                    current_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
+                    think_on_not = "" 
+                    
+                    if is_smarter_mode:
+                         print(f"   🧠 切換至 Smarter Model 清單")
+                         current_model_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", current_model_list)
+                         current_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 8000)
+                         think_on_not = "並請認真思考。"
+                    
                     prompt_template = self.settings.get("TAGGED_REPLY_PROMPT_TEMPLATE", "")
                     prompt = prompt_template.format(
                         msg_limit=msg_limit, 
                         context_str=full_context_str, 
                         u_name=u_name, 
-                        content_clean=content_clean + final_suffix
+                        content_clean=content_clean + final_suffix,
+                        think_on_not=think_on_not
                     )
 
                     reply_content = None
                     used_model = None
                     last_error = None
 
-                    # 決定使用哪一組模型清單與 Token 上限
-                    current_model_list = self.model_priority_list
-                    current_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
-                    
-                    # 檢查是否觸發 Smarter Mode
-                    smarter_keyword = self.settings.get("SMARTER_MODE_KEYWORD", "/research")
-                    if smarter_keyword and smarter_keyword in message.content: # 這裡檢查原始 content 即可
-                         print(f"   🧠 偵測到 '{smarter_keyword}'，切換至 Smarter Model 清單")
-                         current_model_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", current_model_list)
-                         current_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 8000)
-                         think_on_not = "並請認真思考。"
-                    else:
-                        think_on_not = ""
+                    # 刪除重複的邏輯
 
                     for model_name in current_model_list:
                         print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {current_token_limit})...")
