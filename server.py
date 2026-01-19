@@ -328,10 +328,6 @@ async def send_split_message(channel, text):
 
 async def run_ai_summary(client, settings, secrets):
     mode = settings.get("AI_SUMMARY_MODE", 2)
-    if mode == 0:
-        print("⏹️ AI 總結功能已停用 (Mode 0)，跳過。")
-        return
-    
     tz = settings["TZ"]
     now = datetime.now(tz)
     # 取得強制旗標 (相容大小寫)
@@ -339,6 +335,12 @@ async def run_ai_summary(client, settings, secrets):
     
     # Mode 2: 強制執行 (無視時間) -> 直接往下走
     # Mode 1: 定時執行 (需檢查時間，除非有 force_run)
+    # Mode 0: 停用 (除非有 force_run)
+
+    if mode == 0 and not force_run:
+        print("⏹️ AI 總結功能已停用 (Mode 0)，跳過。")
+        return
+
     if mode == 1 and not force_run:
         modulo = settings.get("AI_SUMMARY_SCHEDULE_MODULO", 4)
         delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
@@ -577,7 +579,8 @@ async def run_daily_quote(client, settings, secrets):
     force_run = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
     mode = settings.get("DAILY_QUOTE_MODE", 1)
 
-    if mode == 0:
+    # Mode 0: 停用
+    if mode == 0 and not force_run:
         print("⏹️ 每日金句功能已停用 (Mode 0)，跳過。")
         return
 
@@ -748,14 +751,14 @@ async def run_daily_quote(client, settings, secrets):
 
 async def run_link_screenshot(client, settings, secrets):
     mode = settings.get("LINK_SCREENSHOT_MODE", 2)
-    if mode == 0:
-        print("⏹️ 連結截圖功能已停用 (Mode 0)，跳過。")
-        return
-    
     tz = settings["TZ"]
     now = datetime.now(tz)
     # 取得強制旗標 (相容大小寫)
     force_run = str(os.getenv("FORCE_LINK_SCREENSHOT", "false")).lower() == "true"
+    # Mode 0: 停用
+    if mode == 0 and not force_run:
+        print("⏹️ 連結截圖功能已停用 (Mode 0)，跳過。")
+        return
 
     # Mode 2: 強制執行 (無視時間) -> 直接往下走
     if mode == 1 and not force_run:
