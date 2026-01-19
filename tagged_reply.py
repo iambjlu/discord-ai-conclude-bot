@@ -306,7 +306,7 @@ class TaggedResponseBot(discord.Client):
                     # 拼接對話內容
                     full_context_str = "\n".join(sorted_lines)
                     print(f"   📄 總共收集到 {len(sorted_lines)} 則訊息 (已去重)")
-                    # print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
+                    print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
 
                     # 5. 呼叫 AI 模型 (嘗試優先順序列表)
                     if not self.genai_client:
