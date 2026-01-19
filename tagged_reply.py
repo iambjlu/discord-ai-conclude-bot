@@ -532,7 +532,7 @@ class TaggedResponseBot(discord.Client):
                             extra_info = f" + 被回覆訊息前後 {ref_limit} 則"
 
                         if "gemini" in used_model.lower():
-                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。"
+                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試使用此模型"
                         else:
                             footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試存取更聰明的模型"
 
