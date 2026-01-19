@@ -1,6 +1,32 @@
+import sys
+import subprocess
+import importlib.util
+
+def check_requirements():
+    required_packages = {
+        'discord': 'discord.py',
+        'google.genai': 'google-genai',
+        'dotenv': 'python-dotenv',
+    }
+    missing = []
+    for module_name, package_name in required_packages.items():
+        if importlib.util.find_spec(module_name) is None:
+            missing.append(package_name)
+    
+    if missing:
+        print(f"❌ 偵測到缺少必要套件: {', '.join(missing)}")
+        print("🔄 正在嘗試自動安裝...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
+            print("✅ 安裝完成！繼續執行程式...")
+        except subprocess.CalledProcessError:
+            print("❌ 自動安裝失敗。請手動執行以下指令安裝：")
+            print(f"pip install {' '.join(missing)}")
+            sys.exit(1)
+
+check_requirements()
 
 import discord
-import sys
 import os
 import re
 from datetime import datetime, timedelta, timezone
