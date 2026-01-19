@@ -181,7 +181,8 @@ def get_secrets():
     source_ids = []
     if source_ids_str:
         try:
-            source_ids = [int(x.strip()) for x in source_ids_str.split(',') if x.strip()]
+            # 支援以逗號分隔，並過濾掉 # 註解
+            source_ids = [int(x.split('#')[0].strip()) for x in source_ids_str.split(',') if x.strip() and x.split('#')[0].strip()]
             print(f"✅ 監聽頻道: {source_ids}")
         except ValueError:
             print(f"❌ SOURCE_CHANNEL_IDS 格式錯誤: {source_ids_str}")
@@ -192,7 +193,7 @@ def get_secrets():
     try:
         t_id_str = os.getenv('TARGET_CHANNEL_ID')
         if t_id_str:
-            target_id = int(t_id_str)
+            target_id = int(t_id_str.split('#')[0].strip())
             print(f"✅ 目標頻道: {target_id}")
     except ValueError:
         print("❌ TARGET_CHANNEL_ID 格式錯誤")
@@ -203,7 +204,7 @@ def get_secrets():
     try:
         p_id_str = os.getenv('TARGET_PREVIEW_ID')
         if p_id_str:
-            preview_id = int(p_id_str)
+            preview_id = int(p_id_str.split('#')[0].strip())
             print(f"✅ 預覽頻道: {preview_id}")
     except ValueError:
         print("❌ TARGET_PREVIEW_ID 格式錯誤")
@@ -214,7 +215,7 @@ def get_secrets():
     try:
         w_id_str = os.getenv('TARGET_WEATHER_ID')
         if w_id_str:
-            weather_channel_id = int(w_id_str)
+            weather_channel_id = int(w_id_str.split('#')[0].strip())
             print(f"✅ 天氣頻道: {weather_channel_id}")
     except ValueError:
         print("❌ TARGET_WEATHER_ID 格式錯誤")
@@ -537,6 +538,7 @@ async def run_ai_summary(client, settings, secrets):
         if target_ch_id:
             target_ch = client.get_channel(target_ch_id)
             if target_ch:
+                print(f"   📣 準備發送至頻道: #{target_ch.name} ({target_ch.id})")
                 if final_messages_str:
                     if gemini_key:
                         print("   🤖 呼叫 Gemini 中...")
@@ -664,6 +666,9 @@ async def run_daily_quote(client, settings, secrets):
                 best_message = message
     
     target_ch = client.get_channel(secrets["TARGET_CHANNEL_ID"])
+    if target_ch:
+        print(f"   📣 準備發送至頻道: #{target_ch.name} ({target_ch.id})")
+
     if best_message and target_ch:
         # 準備資料
         print("   📊 正在分析每日金句...")
@@ -862,6 +867,7 @@ async def run_link_screenshot(client, settings, secrets):
         if not target_ch:
             print(f"   ⚠️ 無預覽目標頻道 ({secrets.get('TARGET_PREVIEW_ID')})，僅截圖不發送")
         else:
+            print(f"   📣 準備發送至頻道: #{target_ch.name} ({target_ch.id})")
             # 發送預告 Header
             if captured_links:
                 start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
@@ -1066,6 +1072,7 @@ async def run_weather_forecast(client, settings, secrets):
     if target_ch_id:
         ch = client.get_channel(target_ch_id)
         if ch:
+            print(f"   📣 準備發送至頻道: #{ch.name} ({ch.id})")
             header = f"## ☀️ 天氣預報快訊\n"
             
             # 準備 Server Info
