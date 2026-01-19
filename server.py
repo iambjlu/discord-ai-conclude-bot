@@ -334,8 +334,11 @@ async def run_ai_summary(client, settings, secrets):
     
     tz = settings["TZ"]
     now = datetime.now(tz)
-    force_run = os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true"
-
+    # 取得強制旗標 (相容大小寫)
+    force_run = str(os.getenv("FORCE_AI_SUMMARY", "false")).lower() == "true"
+    
+    # Mode 2: 強制執行 (無視時間) -> 直接往下走
+    # Mode 1: 定時執行 (需檢查時間，除非有 force_run)
     if mode == 1 and not force_run:
         modulo = settings.get("AI_SUMMARY_SCHEDULE_MODULO", 4)
         delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
@@ -751,8 +754,10 @@ async def run_link_screenshot(client, settings, secrets):
     
     tz = settings["TZ"]
     now = datetime.now(tz)
-    force_run = os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true"
+    # 取得強制旗標 (相容大小寫)
+    force_run = str(os.getenv("FORCE_LINK_SCREENSHOT", "false")).lower() == "true"
 
+    # Mode 2: 強制執行 (無視時間) -> 直接往下走
     if mode == 1 and not force_run:
         modulo = settings.get("LINK_SCREENSHOT_SCHEDULE_MODULO", 2)
         delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
