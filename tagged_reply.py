@@ -117,7 +117,7 @@ class TaggedResponseBot(discord.Client):
         """搜尋過去 3 分鐘內的訊息，找出最後發出更新指令的頻道並回報"""
         keyword = self.settings.get("EXEC_COMMAND_KEYWORD", "update_bot")
         # 設定 3 分鐘的時間範圍
-        time_limit = datetime.now(timezone.utc) - timedelta(minutes=3)
+        time_limit = datetime.now(timezone.utc) - timedelta(minutes=2)
         print(f"🔍 正在檢查 3 分鐘內是否有頻道在等待更新回報 (關鍵字: {keyword})...")
         
         target_message = None
@@ -129,8 +129,8 @@ class TaggedResponseBot(discord.Client):
                     continue
 
                 try:
-                    # 抓取 3 分鐘內的歷史紀錄
-                    async for msg in channel.history(after=time_limit, limit=50):
+                    # 抓取x分鐘內的歷史紀錄
+                    async for msg in channel.history(after=time_limit, limit=20):
                         is_triggered = self.user in msg.mentions
                         content_clean = msg.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
                         
