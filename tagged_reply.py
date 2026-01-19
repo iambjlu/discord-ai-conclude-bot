@@ -57,7 +57,7 @@ def get_settings():
         "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
         "DEFAULT_TOKEN_LIMIT": 3000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemma-3-27b-it"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 100,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -476,41 +476,67 @@ class TaggedResponseBot(discord.Client):
                     if not final_suffix and prev_msg_content:
                         final_suffix = prev_msg_content
 
-                    # 決定使用哪一組模型清單與 Token 上限 (順便決定 think_on_not)
+                    prompt_template = self.settings.get("TAGGED_REPLY_PROMPT_TEMPLATE", "")
+                    
+                    # 預設參數 (一般模式)
+                    smarter_list = [] 
                     current_model_list = self.model_priority_list
-                    current_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
-                    think_on_not = "" 
                     
                     if is_smarter_mode:
-                         print(f"   🧠 切換至 Smarter Model 清單")
-                         current_model_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", current_model_list)
-                         current_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 8000)
-                         think_on_not = "並請認真思考。"
-                    
-                    prompt_template = self.settings.get("TAGGED_REPLY_PROMPT_TEMPLATE", "")
-                    prompt = prompt_template.format(
-                        msg_limit=msg_limit, 
-                        context_str=full_context_str, 
-                        u_name=u_name, 
-                        content_clean=content_clean + final_suffix,
-                        think_on_not=think_on_not
-                    )
+                         print(f"   🧠 切換至 Smarter Model 清單 (含備援)")
+                         smarter_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", [])
+                         # 合併清單：聰明模型優先，若失敗則回退到一般模型清單
+                         current_model_list = smarter_list + [m for m in self.model_priority_list if m not in smarter_list]
 
                     reply_content = None
                     used_model = None
                     last_error = None
-
-                    # 刪除重複的邏輯
+                    
+                    normal_msg_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
 
                     for model_name in current_model_list:
-                        print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {current_token_limit})...")
+                        # 判斷當前模型是否為聰明模型 (以決定 Token 上限與 Context 大小)
+                        is_current_smart = (model_name in smarter_list)
+                        
+                        # 決定參數
+                        if is_current_smart:
+                            iter_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 120000)
+                            iter_think = "並請認真思考。"
+                            iter_context_str = full_context_str
+                            iter_limit_display = msg_limit
+                        else:
+                            # Fallback 或 一般模式
+                            iter_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
+                            iter_think = ""
+                            iter_limit_display = normal_msg_limit
+                            
+                            # 若 Context 太長 (因為是用 Smarter Mode 抓的)，需截斷給一般模型
+                            if len(sorted_lines) > normal_msg_limit:
+                                fallback_lines = sorted_lines[-normal_msg_limit:]
+                                if author_mapping:
+                                    iter_context_str = mapping_section + "\n" + "\n".join(fallback_lines) + "\n"
+                                else:
+                                    iter_context_str = "\n".join(fallback_lines)
+                            else:
+                                iter_context_str = full_context_str
+
+                        # 動態生成 Prompt
+                        prompt = prompt_template.format(
+                            msg_limit=iter_limit_display, 
+                            context_str=iter_context_str, 
+                            u_name=u_name, 
+                            content_clean=content_clean + final_suffix,
+                            think_on_not=iter_think
+                        )
+
+                        print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {iter_token_limit}, Context: {iter_limit_display}則)...")
                         try:
                             # print(prompt) # 減少 Log 雜訊
                             response = self.genai_client.models.generate_content(
                                 model=model_name,
                                 contents=prompt,
                                 config=types.GenerateContentConfig(
-                                    max_output_tokens=current_token_limit,
+                                    max_output_tokens=iter_token_limit,
                                     temperature=1 
                                 )
                             )
@@ -538,9 +564,17 @@ class TaggedResponseBot(discord.Client):
                         else:
                             footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
 
+                        # 檢查是否發生了聰明模型回退
+                        fallback_warning = ""
+                        if is_smarter_mode:
+                            smarter_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", [])
+                            if used_model not in smarter_list:
+                                fallback_warning = f"> - # ⚠️ 聰明模型目前暫時不可用，可能是超過每日或每分鐘上限。目前使用其他模型回應\n"
+
                         footer = (
-                            f"\n\n"
+                            f"\n"
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
+                            f"{fallback_warning}"
                             f"{footer_model_text}\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
