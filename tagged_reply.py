@@ -50,7 +50,7 @@ def get_settings():
         "BOT_NAME": "🤖機器人",               # Bot 在對話歷史中的顯示名稱
         "TOTAL_MSG_LIMIT": 50,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
         "MAX_MSG_LENGTH": 100,             # 單則訊息最大長度 (超過截斷)
-        "IGNORE_TOKEN": "> -# 🤖",             # 截斷標記
+        "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
         "TAGGED_REPLY_PROMPT_TEMPLATE": """你是一個機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識截止於2024/8，時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
@@ -193,7 +193,7 @@ class TaggedResponseBot(discord.Client):
                 print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行更新並重啟")
                 try:
                     # 使用 reply 告知使用者，然後直接執行
-                    await message.reply(f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n-# 🤖如果有可用更新會立即安裝。\n> -# 提示：你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新並重啟機器人")
+                    await message.reply(f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n-# 🤖 提示：你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新並重啟機器人")
                     
                     # 🚀 重要：先優雅地關閉 Bot 連線，避免 Gateway 噴錯
                     print("🔄 正在關閉 Discord 連線並準備重啟...")

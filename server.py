@@ -90,7 +90,7 @@ def get_settings():
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
         "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
         # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
-        "IGNORE_TOKEN": "> -# 🤖",         # 截斷標記
+        "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
         "BOT_NAME": "🤖機器人",           # Bot 在對話歷史中的顯示名稱
         "GEMINI_SUMMARY_FORMAT": """
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。
