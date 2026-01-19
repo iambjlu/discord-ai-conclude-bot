@@ -108,6 +108,19 @@ def get_settings():
         settings["AI_SUMMARY_MODE"] = 1
         settings["DAILY_QUOTE_MODE"] = 1
         settings["LINK_SCREENSHOT_MODE"] = 1
+
+        # 若有強制執行旗標，則將對應模式改為 2 (強制啟用)
+        if os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true":
+            settings["AI_SUMMARY_MODE"] = 2
+            print("💪 強制執行 AI 總結 (Mode 2)")
+        
+        if os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true":
+            settings["DAILY_QUOTE_MODE"] = 2
+            print("💪 強制執行 每日金句 (Mode 2)")
+            
+        if os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true":
+            settings["LINK_SCREENSHOT_MODE"] = 2
+            print("💪 強制執行 連結截圖 (Mode 2)")
     
     return settings
 
