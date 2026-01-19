@@ -81,9 +81,6 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 ### 2. 對話機器人 (`tagged_reply.py`)
 這是**互動式機器人**。需要**常駐執行 (Keep Alive)**，它會監聽頻道中的提及 (Mention) 並做出回應。
 
-*   **功能**：當使用者 Tag 機器人時（例如 `@Bot 30` 或單純 `@Bot`），回覆該頻道最新的 30 則對話摘要與回應。
-    *   若**回覆 (Reply)** 某則訊息並 Tag Bot，會自動包含該訊息前後一段時間的上下文。
-    *   支援指定抓取數量，例如 `@Bot 50` 代表抓取最新 50 則。
 *   **執行方式**：
     ```bash
     python3 tagged_reply.py

@@ -136,6 +136,25 @@ class TaggedResponseBot(discord.Client):
                 pass
 
         if is_triggered:
+            # 3.1 檢查是否有特殊執行指令 (部署等) - 收到訊息馬上檢查，不調閱歷史
+            content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
+            
+            if self.settings.get("ENABLE_EXEC_COMMAND", False) and self.settings.get("EXEC_COMMAND_KEYWORD", "") in content_clean:
+                env_var_name = self.settings.get("EXEC_COMMAND_ENV_NAME", "")
+                cmd = os.getenv(env_var_name)
+                if cmd:
+                    print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行指令: {cmd}")
+                    try:
+                        # 使用 reply 告知使用者，然後直接執行
+                        await message.reply(f"🚀 收到關鍵字，機器人正在 OTA 更新...")
+                        os.system(cmd)
+                        # 執行指令後直接 return，避免進入下方的 AI 回應與歷史抓取邏輯
+                        return
+                    except Exception as e:
+                        print(f"❌ 執行指令失敗: {e}")
+                        await message.reply(f"❌ 執行指令失敗: {e}")
+                        return
+
             print(f"📨 收到觸發 (Mention/Reply): {message.author} 在 #{message.channel}")
             
             # 顯示正在輸入...
@@ -143,24 +162,8 @@ class TaggedResponseBot(discord.Client):
                 try:
                     # 3. 設定訊息抓取數量 (動態分配)
                     u_name = message.author.display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
-                    content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
-                    
-                    # 3.1 檢查是否有特殊執行指令 (部署等)
-                    if self.settings.get("ENABLE_EXEC_COMMAND", False) and self.settings.get("EXEC_COMMAND_KEYWORD", "") in content_clean:
-                        env_var_name = self.settings.get("EXEC_COMMAND_ENV_NAME", "")
-                        cmd = os.getenv(env_var_name)
-                        if cmd:
-                            print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行指令: {cmd}")
-                            try:
-                                # 使用 Popen 非同步執行，避免卡住 Bot
-                                await message.reply(f"🚀 收到關鍵字，正在執行更新機器人", ...)
-                                os.system(cmd)
-                                print("👋 正在關閉舊程序以進行更新...")
-                                sys.exit(0) # 關閉自己
-                                # 如果只需要執行指令而不需 AI 回應，可以在此 return
-                                return
-                            except Exception as e:
-                                await message.reply(f"❌ 執行指令失敗: {e}")
+                    # content_clean 已在上方算過，此處不需要重複計算 (除非需要更複雜的處理)
+
                     
                     total_limit = self.settings.get("TOTAL_MSG_LIMIT", 150)
                     msg_limit = total_limit # 預設全部給最新訊息 (若無回覆)
