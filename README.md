@@ -107,12 +107,13 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 ### 功能開關 (Modes)
 *   **`AI_SUMMARY_MODE`**: AI 摘要功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
 *   **`DAILY_QUOTE_MODE`**: 每日金句功能 (`0`: 關閉, `1`: 僅午夜執行, `2`: 強制執行)
-*   **`DAILY_QUOTE_IMAGE_MODE`**: 金句圖片生成 (`0`: 關閉, `1`: 純文字, `2`: 產生圖片)
+*   **`DAILY_QUOTE_IMAGE_MODE`**: 金句圖片生成 (`0`: 關閉, `1`/`2`: 啟用)
 *   **`LINK_SCREENSHOT_MODE`**: 連結預覽功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
 
 ### 排程與範圍 (Schedule & Ranges)
 *   **`AI_SUMMARY_SCHEDULE_MODULO`**: AI 摘要的執行間隔小時數 (預設 `4`, 即 0, 4, 8... 點執行)。
 *   **`LINK_SCREENSHOT_SCHEDULE_MODULO`**: 連結截圖的執行間隔小時數 (預設 `2`)。
+*   **`SCHEDULE_DELAY_TOLERANCE`**: 允許排程執行的延遲寬容度 (單位: 小時，預設 `1`)，用於應對 GitHub Actions 可能的排隊延遲。
 *   **`RECENT_MSG_HOURS`**: AI 摘要要抓取「前幾小時」的訊息 (預設 `5`)。
 *   **`LINK_SCREENSHOT_HOURS`**: 連結截圖要抓取「前幾小時」的連結 (預設 `3`)。
 *   **`DAYS_AGO`**: 每日金句要統計「幾天前」的資料 (預設 `1` 代表昨天)。
@@ -134,12 +135,14 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 *   **`GEMINI_SUMMARY_FORMAT`**: 給 AI 的 Prompt 模板，定義摘要的 Markdown 格式。
  
 ### 對話機器人 (tagged_reply.py) 設定
-*   **`TOTAL_MSG_LIMIT`**: 訊息抓取總額度 (預設 `150`)。若有回覆參照，會自動分配給最新訊息與回覆上下文。
-*   **`MAX_MSG_LENGTH`**: 單則訊息最大字數 (預設 `150`)，超過會被截斷，節省 Token。
+*   **`TOTAL_MSG_LIMIT`**: 訊息抓取總額度 (預設 `50`)。若有回覆參照，會自動分配給最新訊息與回覆上下文。
+*   **`MAX_MSG_LENGTH`**: 單則訊息最大字數 (預設 `100`)，超過會被截斷，節省 Token。
 *   **`TAGGED_REPLY_PROMPT_TEMPLATE`**: AI 回應的人設與 Prompt 模板。
 *   **`ENABLE_EXEC_COMMAND`**: 是否開啟關鍵字執行指令功能 (`True`/`False`)。
-*   **`EXEC_COMMAND_KEYWORD`**: 當被標註的訊息中包含此關鍵字時觸發執行（例如 `update_bot_now`）。
-*   **`EXEC_COMMAND_ENV_NAME`**: 指定要從 `.env` 讀取的環境變數名稱，該變數儲存了實際執行的 Shell 指令。
+*   **`EXEC_COMMAND_KEYWORD`**: 當被標註的訊息中包含此關鍵字時觸發執行（例如 `update_bot`），將執行 `git pull` 並重啟。
+*   **`SMARTER_MODE_KEYWORD`**: 觸發「聰明模式」的關鍵字 (預設 `/聰明模型`)，機器人將切換至更強大的模型 (如 Gemini 2.5 Flash) 並大幅提升 Token 上限。
+*   **`SMARTER_TOKEN_LIMIT`**: 聰明模式下的 Token 上限 (預設 `120000`)。
+*   **`SMARTER_TOTAL_MSG_LIMIT`**: 聰明模式下的訊息抓取總額度 (預設 `100`)。
 
 這些變數會在程式啟動時讀取，若是 `tagged_reply.py` 則需要在修改後重新啟動 Bot 生效。
 
