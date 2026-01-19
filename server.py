@@ -15,6 +15,7 @@ def check_requirements():
         'dotenv': 'python-dotenv',
         'playwright': 'playwright',
         'PIL': 'pillow',
+        'requests': 'requests',
     }
     missing = []
     for module_name, package_name in required_packages.items():
@@ -48,6 +49,9 @@ import os
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 from renderer import ImageGenerator
+import requests
+import io
+from contextlib import redirect_stdout
 
 # ==========================================
 #              設定與環境 (FUNCTIONS)
@@ -57,17 +61,27 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     settings = {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 2,          # AI總結
+        "AI_SUMMARY_MODE": 1,          # AI總結
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
-        "LINK_SCREENSHOT_MODE": 0,     # 連結截圖
+        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
+        "WEATHER_MODE": 1,             # 天氣預報 (0=停用, 1=定時, 2=強制)
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
         "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
+        "WEATHER_SCHEDULE_MODULO": 4,          # 天氣預報頻率 (每N小時)
         "SCHEDULE_DELAY_TOLERANCE": 1,         # 允許延遲執行的時數 (應對 GH Actions 延遲，單位: 小時)
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         # 每日金句固定於 00:xx 執行 (24小時一次)
+
+        # --- 天氣預報地點 ---
+        # "WEATHER_COUNTIES": [
+        #     "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹縣", "新竹市", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣", "嘉義市", "屏東縣","宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣", 
+        # ],
+        "WEATHER_COUNTIES": [
+            "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹縣", "新竹市", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣", "嘉義市", "屏東縣","宜蘭縣", "花蓮縣", "臺東縣"
+        ],
 
         
         # --- 抓取範圍 ---
@@ -107,14 +121,16 @@ def get_settings():
         force_ai = os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true"
         force_quote = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
         force_link = os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true"
+        force_weather = os.getenv("FORCE_WEATHER_FORECAST", "false").lower() == "true"
         
         # 只要有任何一個強制執行旗標被打開
-        if force_ai or force_quote or force_link:
+        if force_ai or force_quote or force_link or force_weather: # 偵測到手動強制執行
             print("🚀 偵測到手動強制執行，將覆寫排程設定：")
             # 1. 先全部關閉 (設為 0)
             settings["AI_SUMMARY_MODE"] = 0
             settings["DAILY_QUOTE_MODE"] = 0
             settings["LINK_SCREENSHOT_MODE"] = 0
+            settings["WEATHER_MODE"] = 0
             
             # 2. 針對被開啟的項目設為 2 (強制啟用)
             if force_ai:
@@ -126,12 +142,16 @@ def get_settings():
             if force_link:
                 settings["LINK_SCREENSHOT_MODE"] = 2
                 print("   💪 強制執行 連結截圖 (Mode 2)")
+            if force_weather:
+                settings["WEATHER_MODE"] = 2
+                print("   💪 強制執行 天氣預報 (Mode 2)")
         else:
             # 純排程模式 (無任何強制旗標) -> 全部設為 1 (定時)
             print("🕒 GitHub Actions 排程模式：全部設為定時檢查 (Mode 1)")
             settings["AI_SUMMARY_MODE"] = 1
             settings["DAILY_QUOTE_MODE"] = 1
             settings["LINK_SCREENSHOT_MODE"] = 1
+            settings["WEATHER_MODE"] = 1
     
     return settings
 
@@ -188,6 +208,25 @@ def get_secrets():
     except ValueError:
         print("❌ TARGET_PREVIEW_ID 格式錯誤")
     secrets['TARGET_PREVIEW_ID'] = preview_id
+
+    # 5.5 Target Weather ID
+    weather_channel_id = None
+    try:
+        w_id_str = os.getenv('TARGET_WEATHER_ID')
+        if w_id_str:
+            weather_channel_id = int(w_id_str)
+            print(f"✅ 天氣頻道: {weather_channel_id}")
+    except ValueError:
+        print("❌ TARGET_WEATHER_ID 格式錯誤")
+    secrets['TARGET_WEATHER_ID'] = weather_channel_id
+
+    # 6. Weather Key
+    weather_key = os.getenv('WEATHER_KEY')
+    if not weather_key:
+        print("⚠️ 警告: 未讀取到 WEATHER_KEY")
+    else:
+        print("✅ 讀取 WEATHER_KEY")
+    secrets['WEATHER_KEY'] = weather_key
 
     return secrets
 
@@ -917,6 +956,180 @@ async def run_link_screenshot(client, settings, secrets):
     print()
 
 
+def get_weather_data(api_key, counties):
+    # 預報 API 使用的是「縣市名稱」而不是測站 ID
+    
+    # 36小時天氣預報 API
+    url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-C0032-001?Authorization={api_key}"
+    results = []
+
+    try:
+        response = requests.get(url)
+        data = response.json()
+
+        if data.get("success") != "true":
+            print("API 請求失敗，請檢查 Key 有沒有填對。")
+            return []
+
+        locations = data["records"]["location"]
+
+        for county in counties:
+            # 從回傳資料中篩選出我們要的縣市
+            target = next((loc for loc in locations if loc["locationName"] == county), None)
+            
+            if target:
+                elements = target["weatherElement"]
+                
+                # 這裡拿的是「第一個時段」(index 0)，即未來 12 小時的預報
+                # Wx: 天氣現象, PoP: 降雨機率, MinT: 最低溫, MaxT: 最高溫
+                wx = elements[0]["time"][0]["parameter"]["parameterName"]
+                pop = elements[1]["time"][0]["parameter"]["parameterName"]
+                min_t = elements[2]["time"][0]["parameter"]["parameterName"]
+                max_t = elements[4]["time"][0]["parameter"]["parameterName"]
+                # CI: 舒適度
+                ci = elements[3]["time"][0]["parameter"]["parameterName"]
+
+                start_time = elements[0]["time"][0]["startTime"]
+                end_time = elements[0]["time"][0]["endTime"]
+                
+                results.append({
+                    "county": county,
+                    "wx": wx,
+                    "pop": pop,
+                    "min_t": min_t,
+                    "max_t": max_t,
+                    "ci": ci,
+                    "time_range": f"{start_time[5:16]} ~ {end_time[5:16]}"
+                })
+
+            else:
+                print(f"找不到 {county} 的資料。")
+                
+        return results
+
+    except Exception as e:
+        print(f"發生錯誤啦：{e}")
+        return []
+
+
+async def run_weather_forecast(client, settings, secrets):
+    mode = settings.get("WEATHER_MODE", 1)
+    # 取得強制旗標 (相容大小寫)
+    force_run = str(os.getenv("FORCE_WEATHER_FORECAST", "false")).lower() == "true"
+    
+    # Mode 0: 停用
+    if mode == 0 and not force_run:
+        print("⏹️ 天氣預報功能已停用 (Mode 0)，跳過。")
+        return
+
+    # Mode 1: 定時
+    if mode == 1 and not force_run:
+        tz = settings["TZ"]
+        now = datetime.now(tz)
+        modulo = settings.get("WEATHER_SCHEDULE_MODULO", 4)
+        delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
+        if (now.hour % modulo) > delay_tolerance:
+            print(f"⏹️ [Weather] 現在 {now.strftime('%H:%M')} 非排程時段 (每 {modulo} 小時，允許延遲 {delay_tolerance}h)，跳過。")
+            return
+
+    print(">>> [Weather] 開始執行：天氣預報")
+    
+    if not secrets['WEATHER_KEY']:
+        print("   ❌ 無 WEATHER_KEY，跳過")
+        return
+
+    # 執行捉取
+    weather_data_list = get_weather_data(secrets['WEATHER_KEY'], settings['WEATHER_COUNTIES'])
+    
+    if not weather_data_list:
+        print("   ⚠️ 執行完畢但無資料")
+        return
+
+    # 生成文字報告
+    text_report = ""
+    for item in weather_data_list:
+        text_report += f"### {item['county']} 今日預報\n"
+        text_report += f"預報時段 : {item['time_range']}\n"
+        text_report += f"天氣狀態 : {item['wx']} ({item['ci']})\n"
+        text_report += f"降雨機率 : {item['pop']}%\n"
+        text_report += f"氣溫區間 : {item['min_t']} °C - {item['max_t']} °C\n\n"
+
+    # 優先使用 TARGET_WEATHER_ID，若無則 fallback 到 TARGET_CHANNEL_ID
+    target_ch_id = secrets.get('TARGET_WEATHER_ID')
+    if not target_ch_id:
+        target_ch_id = secrets.get('TARGET_CHANNEL_ID')
+        if target_ch_id:
+            print(f"   ℹ️ 未設定 TARGET_WEATHER_ID，使用預設目標頻道 {target_ch_id}")
+    else:
+        print(f"   ℹ️ 使用天氣專用頻道 {target_ch_id}")
+
+    if target_ch_id:
+        ch = client.get_channel(target_ch_id)
+        if ch:
+            header = f"## ☀️ 天氣預報快訊\n"
+            
+            # 準備 Server Info
+            server_name = "Discord Server"
+            server_icon = None
+            if hasattr(ch, "guild") and ch.guild:
+                server_name = ch.guild.name
+                if ch.guild.icon:
+                    try:
+                        server_icon = await ch.guild.icon.read()
+                    except Exception as e:
+                        print(f"   ⚠️ 無法讀取伺服器圖示: {e}")
+
+            # 定義分區
+            region_map = {
+                "北部地區": ["基隆市", "臺北市", "新北市", "桃園市", "新竹市", "新竹縣", "宜蘭縣"],
+                "中部地區": ["苗栗縣", "臺中市", "彰化縣", "南投縣", "雲林縣","花蓮縣"],
+                "南部地區": ["嘉義市", "嘉義縣", "臺南市", "高雄市", "屏東縣","臺東縣"]
+                # "東部與離島": ["澎湖縣", "金門縣", "連江縣"]
+            }
+
+            # 取得預報時間範圍 (假設所有縣市一致)
+            time_range_str = weather_data_list[0]['time_range'] if weather_data_list else ""
+
+            header = f"## 🌤️ 台灣各縣市天氣預報\n📅 **{time_range_str}**\n"
+            await send_split_message(ch, header)
+
+            gen = ImageGenerator()
+            
+            # 依序產生並發送四張圖
+            for r_name, r_counties in region_map.items():
+                # 過濾該區資料
+                group_data = [d for d in weather_data_list if d['county'] in r_counties]
+                
+                # 若完全沒資料則跳過
+                if not group_data:
+                    continue
+                    
+                print(f"   🎨 正在生成 [{r_name}] 天氣卡 (共 {len(group_data)} 筆)...")
+                try:
+                    img_buffer = await gen.generate_weather_card(
+                        group_data, 
+                        server_name, 
+                        server_icon, 
+                        title=f"{r_name}天氣預報"
+                    )
+                    
+                    if img_buffer:
+                        file = discord.File(fp=img_buffer, filename=f"weather_{r_name}.png")
+                        await ch.send(file=file)
+                        # await ch.send(content=f"**{r_name}**", file=file)
+                        print(f"   ✅ {r_name} 圖片已發送")
+                except Exception as e:
+                    print(f"   ❌ 生成/發送 {r_name} 失敗: {e}")
+            
+        else:
+            print(f"   ⚠️ 找不到頻道 {target_ch_id}")
+
+    else:
+        print("   ⚠️ 未設定 TARGET_WEATHER_ID 或 TARGET_CHANNEL_ID")
+    print()
+
+
+
 # ==========================================
 #              主程式 (MAIN)
 # ==========================================
@@ -937,9 +1150,12 @@ class MyClient(discord.Client):
         # 2. 執行 每日金句
         await run_daily_quote(self, self.settings, self.secrets)
 
-        # 3. 執行 連結截圖
+        # 3. 執行 天氣預報
+        await run_weather_forecast(self, self.settings, self.secrets)
+
+        # 4. 執行 連結截圖
         await run_link_screenshot(self, self.settings, self.secrets)
-        
+
         
         print('-------------------------------------------')
         print("🎉 所有排程執行完畢，Bot 關閉。")
@@ -955,6 +1171,7 @@ if __name__ == "__main__":
     print(f"AI Summary Mode: {settings_data['AI_SUMMARY_MODE']} (Force: {os.getenv('FORCE_AI_SUMMARY', 'false')})")
     print(f"Daily Quote Mode: {settings_data['DAILY_QUOTE_MODE']} (Force: {os.getenv('FORCE_DAILY_QUOTE', 'false')})")
     print(f"Link Screenshot Mode: {settings_data['LINK_SCREENSHOT_MODE']} (Force: {os.getenv('FORCE_LINK_SCREENSHOT', 'false')})")
+    print(f"Weather Forecast Mode: {settings_data['WEATHER_MODE']} (Force: {os.getenv('FORCE_WEATHER_FORECAST', 'false')})")
     print("========================\n")
 
     if not secrets_data['TOKEN']:

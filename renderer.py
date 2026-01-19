@@ -6,6 +6,7 @@ import asyncio
 import base64
 from playwright.async_api import async_playwright
 import os
+import io
 
 class ImageGenerator:
     def __init__(self):
@@ -354,6 +355,294 @@ class ImageGenerator:
             await browser.close()
             
             import io
+            return io.BytesIO(img_bytes)
+
+    async def generate_weather_card(self, weather_data: list, server_name: str = "", server_icon: bytes = None, title: str = "🌤️ 台灣各縣市天氣預報"):
+        """
+        weather_data: list of dict
+        """
+        # 1. 準備資源
+        server_icon_src = self._bytes_to_base64(server_icon) or "https://cdn.discordapp.com/embed/avatars/0.png"
+        
+        import html
+        server_safe = html.escape(server_name)
+        title_safe = html.escape(title)
+        
+        # 建立 Grid HTML
+        cards_html = ""
+        for item in weather_data:
+            c_name = html.escape(item['county'])
+            wx = html.escape(item['wx'])
+            pop = html.escape(item['pop'])
+            temp = f"{item['min_t']}°-{item['max_t']}°"
+            ci = html.escape(item['ci'])
+            
+            # 根據降雨機率改變顏色/圖示
+            pop_val = int(pop) if pop.isdigit() else 0
+            
+            # 降雨圖示邏輯
+            # "如果降雨0%就把emoji用🌂表示"
+            pop_icon = "☔"
+            if pop == "0":
+                pop_icon = "🌂 " # Add space if needed
+            
+            # 簡單的天氣圖示判定
+            icon = "☁️" 
+            if "雨" in wx: icon = "🌧️"
+            elif "晴" in wx: icon = "☀️"
+            elif "陰" in wx: icon = "☁️"
+            elif "雲" in wx: icon = "⛅"
+            elif "雷" in wx: icon = "⛈️"
+            
+            # 卡片樣式
+            cards_html += f"""
+            <div class="weather-item">
+                <div class="header">
+                    <span class="county">{c_name}</span>
+                    <span class="icon">{icon}</span>
+                </div>
+                <div class="wx-text">{wx}</div>
+                <div class="temp">{temp}C</div>
+                <div class="details">
+                    <div class="detail-item">
+                        <span class="label ci-text">{ci}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="pop-val" style="color: {'#ff6b6b' if pop_val > 50 else '#4ecdc4'}">{pop_icon} {pop}%</span>
+                    </div>
+                </div>
+            </div>
+            """
+            
+        time_info = weather_data[0]['time_range'] if weather_data else ""
+        
+        # Determine columns based on item count to save space if fewer than 3 items
+        # But we want consistency, so let's stick to max 3 columns, but if only 1 or 2 items, fit content.
+        # Actually user asked to "cut off excess".
+        grid_cols_style = "repeat(3, 500px)"
+        if len(weather_data) < 3:
+             grid_cols_style = f"repeat({len(weather_data)}, 500px)"
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                :root {{
+                    --glass: rgba(255, 255, 255, 0.08);
+                    --glass-border: rgba(255, 255, 255, 0.15);
+                    --text: #ffffff;
+                }}
+                body {{
+                    margin: 0; padding: 0;
+                    width: fit-content;
+                    height: fit-content;
+                    background: linear-gradient(180deg, #13131F 0%, #1A1A2E 50%, #0F3460 100%);
+                    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+                    box-sizing: border-box;
+                    color: white;
+                    font-weight: 700;
+                    padding: 60px;
+                }}
+                
+                /* BKG Blobs - adjusted to cover dynamic area */
+                .blob {{ position: absolute; border-radius: 50%; filter: blur(150px); opacity: 0.3; z-index: -1; }}
+                /* Make blobs strictly within body overflow if possible, or just large enough */
+                .blob-1 {{ top: 0; left: 0; width: 100%; height: 800px; background: #E94560; }}
+                .blob-2 {{ bottom: 0; right: 0; width: 100%; height: 800px; background: #533483; }}
+
+                .content-wrapper {{
+                    z-index: 10;
+                    display: flex;
+                    flex-direction: column;
+                }}
+                 /* ... css continues ... */
+
+
+                .header-section {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center; /* Center horizontally aligned items vertically */
+                    margin-bottom: 60px;
+                    width: 100%;
+                }}
+                
+                .title-group {{
+                    display: flex;
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 15px;
+                }}
+                
+                h1 {{
+                    font-size: 100px;
+                    margin: 0;
+                    font-weight: 900;
+                    letter-spacing: 4px;
+                    text-shadow: 0 5px 30px rgba(0,0,0,0.6);
+                    text-align: left;
+                    line-height: 1.1;
+                }}
+                .subtitle {{
+                    font-size: 60px;
+                    color: rgba(255, 255, 255, 0.7);
+                    /* No background */
+                    padding: 0;
+                }}
+                
+                .server-group {{
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    /* No background */
+                    padding: 10px;
+                }}
+                
+                .server-icon {{
+                    width: 120px;
+                    height: 120px;
+                    border-radius: 22px;
+                    object-fit: cover;
+                    margin-bottom: 10px;
+                }}
+                
+                .server-name {{
+                    font-size: 40px;
+                    font-weight: 800;
+                    color: rgba(255,255,255,0.8);
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                }}
+                
+                .grid {{
+                    display: grid;
+                    grid-template-columns: {grid_cols_style};
+                    gap: 30px;
+                }}
+                
+                .weather-item {{
+                    background: var(--glass);
+                    backdrop-filter: blur(30px);
+                    -webkit-backdrop-filter: blur(30px);
+                    border: 3px solid var(--glass-border);
+                    border-radius: 40px;
+                    padding: 35px;
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+                    box-sizing: border-box;
+                    min-height: 400px;
+                }}
+                
+                .header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 15px;
+                    border-bottom: 2px solid rgba(255,255,255,0.1);
+                    padding-bottom: 15px;
+                }}
+                .county {{ font-size: 48px; font-weight: 900; }}
+                .icon {{ font-size: 60px; filter: drop-shadow(0 0 5px rgba(255,255,255,0.4)); }}
+                
+                .wx-text {{
+                    font-size: 48px;
+                    margin-bottom: 15px;
+                    color: #ffd700;
+                    font-weight: 600;
+                    min-height: 60px;
+                    display: flex;
+                    align-items: center;
+                }}
+                
+                .temp {{
+                    font-size: 60px;
+                    font-weight: 600;
+                    margin-bottom: 20px;
+                    letter-spacing: -2px;
+                }}
+                
+                .details {{
+                    background: rgba(0,0,0,0.25);
+                    border-radius: 25px;
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center; /* Center children horizontally */
+                    gap: 10px;
+                }}
+                
+                .detail-item {{
+                    width: 100%;
+                    display: flex;
+                    justify-content: center;
+                }}
+                
+                .ci-text {{ 
+                    font-size: 42px; 
+                    font-weight: 800; 
+                    opacity: 1.0; 
+                    text-align: center;
+                }}
+                
+                .pop-val {{
+                    font-size: 42px;
+                    font-weight: 900;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="blob blob-1"></div>
+            <div class="blob blob-2"></div>
+            
+            <div class="content-wrapper">
+                <div class="header-section">
+                    <div class="title-group">
+                        <h1>{title_safe}</h1>
+                        <div class="subtitle">{time_info}</div>
+                        <!-- <div class="subtitle">📅 預報時段: {time_info}</div> -->
+                    </div>
+                    
+                    <div class="server-group">
+                        <img class="server-icon" src="{server_icon_src}" />
+                        <div class="server-name">{server_safe}</div>
+                    </div>
+                </div>
+                
+                <div class="grid">
+                    {cards_html}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        async with async_playwright() as p:
+            try:
+                browser = await p.chromium.launch(channel="chrome", headless=True)
+            except:
+                browser = await p.chromium.launch(headless=True)
+                
+            # Use explicit viewport size that is large enough for the content to layout horizontally
+            # width ≈ 3 * 500 + 2 * 30 (gap) + 2 * 60 (padding) ≈ 1680. 
+            # Set to 1850 to be safe.
+            context = await browser.new_context(
+                viewport={"width": 1850, "height": 1000}, 
+                device_scale_factor=2, 
+                locale="zh-TW"
+            )
+            page = await context.new_page()
+            await page.set_content(html_content)
+            await page.wait_for_timeout(500)
+            
+            # Crop to body content exactly
+            body_handle = page.locator('body')
+            img_bytes = await body_handle.screenshot(type='png')
+            await browser.close()
+            
             return io.BytesIO(img_bytes)
 
 if __name__ == "__main__":

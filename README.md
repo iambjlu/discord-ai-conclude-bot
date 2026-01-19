@@ -4,6 +4,7 @@
 1. **歷史熱門訊息摘要**：抓取指定頻道最近 X 小時的訊息，利用 Gemini AI 進行重點摘要，並發送到指定頻道。
 2. **每日金句圖片**：每天自動統計前一天獲得最多表情反應（Reaction）的訊息，並透過 Playwright 自動渲染出一張精美的「每日金句」圖片戰報。
 3. **網頁連結預覽**：自動偵測指定頻道中的 URL，呼叫 iOS 模擬器 (iPad) 開啟網頁並截圖，讓社群成員不必點開連結也能預覽內容。
+4. **天氣預報卡片**：定時抓取中央氣象署 (CWA) 資料，生成精美的台灣各地區天氣預報卡片（包含溫度、降雨機率、舒適度）。
 
 ---
 
@@ -52,6 +53,12 @@ TARGET_CHANNEL_ID=112233445566778899
 # 連結預覽的頻道ID
 TARGET_PREVIEW_ID=112233445566778899
 
+# 天氣預報的頻道ID (可選，若未設定則使用 TARGET_CHANNEL_ID)
+TARGET_WEATHER_ID=112233445566778899
+
+# 中央氣象署 OpenData API Key (請至 CWA 開放資料平台取得)
+WEATHER_KEY=你的_CWA_API_KEY
+
 # 關鍵字觸發執行的指令 (可選)
 DEPLOY_COMMAND=git pull && pm2 restart bot
 ```
@@ -65,14 +72,14 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 ### 1. 排程機器人 (`server.py`)
 這是主要的**排程執行腳本**。設計上是讓系統定時觸發（例如透過 Cronjob 或 GitHub Actions），執行完任務後會**自動結束程式**。
 
-*   **功能**：定期發送訊息摘要 (AI Summary)、每日金句 (Daily Quote)、連結預覽 (Link Screenshot)。
+*   **功能**：定期發送訊息摘要 (AI Summary)、每日金句 (Daily Quote)、連結預覽 (Link Screenshot)、天氣預報 (Weather Forecast)。
 *   **執行方式**：
     ```bash
     python3 server.py
     ```
 *   **運作邏輯**：
     1.  啟動並登入 Discord。
-    2.  檢查現在時間是否符合 `AI_SUMMARY_SCHEDULE_MODULO` 或 `LINK_SCREENSHOT_SCHEDULE_MODULO` 的倍數小時。
+    2.  檢查現在時間是否符合 `AI_SUMMARY_SCHEDULE_MODULO`、`LINK_SCREENSHOT_SCHEDULE_MODULO` 或 `WEATHER_SCHEDULE_MODULO` 的倍數小時。
     3.  檢查現在是否為午夜 (00:00) 以決定是否執行每日金句。
     4.  執行所有符合條件的任務。
     5.  任務完成後，程式自動關閉 (Exit)。
@@ -109,14 +116,17 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 *   **`DAILY_QUOTE_MODE`**: 每日金句功能 (`0`: 關閉, `1`: 僅午夜執行, `2`: 強制執行)
 *   **`DAILY_QUOTE_IMAGE_MODE`**: 金句圖片生成 (`0`: 關閉, `1`/`2`: 啟用)
 *   **`LINK_SCREENSHOT_MODE`**: 連結預覽功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
+*   **`WEATHER_MODE`**: 天氣預報功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
 
 ### 排程與範圍 (Schedule & Ranges)
 *   **`AI_SUMMARY_SCHEDULE_MODULO`**: AI 摘要的執行間隔小時數 (預設 `4`, 即 0, 4, 8... 點執行)。
 *   **`LINK_SCREENSHOT_SCHEDULE_MODULO`**: 連結截圖的執行間隔小時數 (預設 `2`)。
+*   **`WEATHER_SCHEDULE_MODULO`**: 天氣預報的執行間隔小時數 (預設 `4`, 即 0, 4, 8... 點執行)。
 *   **`SCHEDULE_DELAY_TOLERANCE`**: 允許排程執行的延遲寬容度 (單位: 小時，預設 `1`)，用於應對 GitHub Actions 可能的排隊延遲。
 *   **`RECENT_MSG_HOURS`**: AI 摘要要抓取「前幾小時」的訊息 (預設 `5`)。
 *   **`LINK_SCREENSHOT_HOURS`**: 連結截圖要抓取「前幾小時」的連結 (預設 `3`)。
 *   **`DAYS_AGO`**: 每日金句要統計「幾天前」的資料 (預設 `1` 代表昨天)。
+*   **`WEATHER_COUNTIES`**: 要抓取天氣預報的縣市列表。
 
 ### 內容顯示 (Display)
 *   **`AUTHOR_NAME_LIMIT`**: 成員名稱顯示的最長字元數。
@@ -160,7 +170,24 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
     *   `GEMINI_API_KEY`
     *   `SOURCE_CHANNEL_IDS`
     *   `TARGET_CHANNEL_ID`
+    *   `WEATHER_KEY` (若要啟用天氣功能)
+    *   `TARGET_WEATHER_ID` (可選)
 4.  設定完成後，Actions 即可依照排程自動執行。您也可以在 Actions 頁面手動觸發測試。
+
+### 自動排程與強制執行邏輯
+在 GitHub Actions 環境中 (`GITHUB_ACTIONS=true`)，程式會自動調整運作模式：
+
+1.  **預設排程模式**：
+    *   若沒有設定任何強制執行變數，所有功能 (`AI_SUMMARY`, `DAILY_QUOTE`, `LINK_SCREENSHOT`, `WEATHER`) 都會自動設為 **Mode 1 (排程模式)**。
+    *   程式會檢查當前時間是否符合設定的 `SCHEDULE_MODULO` (執行頻率) 與 `SCHEDULE_DELAY_TOLERANCE` (寬容度)。
+
+2.  **手動強制執行 (Workflow Dispatch)**：
+    *   若您在 Actions 手動觸發時設定了以下任一環境變數為 `true`，程式將進入「強制執行模式」：
+        *   `FORCE_AI_SUMMARY`: 強制執行 AI 摘要
+        *   `FORCE_DAILY_QUOTE`: 強制執行 每日金句
+        *   `FORCE_LINK_SCREENSHOT`: 強制執行 連結截圖
+        *   `FORCE_WEATHER_FORECAST`: 強制執行 天氣預報
+    *   **注意**：一旦啟用任一強制開關，其餘未被開啟的功能將會自動 **停用 (Mode 0)**，僅執行您指定的任務。這非常適合用於測試特定功能或補跑任務。
 
 ---
 
