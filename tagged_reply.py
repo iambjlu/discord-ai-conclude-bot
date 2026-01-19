@@ -47,14 +47,14 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
-        "BOT_NAME": "🤖機器人",               # Bot 在對話歷史中的顯示名稱
+        "BOT_NAME": "機器人",               # Bot 在對話歷史中的顯示名稱
         "TOTAL_MSG_LIMIT": 50,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
         "MAX_MSG_LENGTH": 100,             # 單則訊息最大長度 (超過截斷)
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
         "TAGGED_REPLY_PROMPT_TEMPLATE": """你是一個機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識截止於2024/8，時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複用戶的句子。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
+        "MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemma-3-27b-it"],
     }
 
 def get_secrets():
@@ -322,22 +322,38 @@ class TaggedResponseBot(discord.Client):
                         # 跳過指令本身
                         if msg.id == message.id: continue
                         
-                        # 記錄作者資訊
-                        author_mapping[msg.author.id] = (msg.author.name, msg.author.display_name)
 
                         content = msg.content
 
-                        # 處理內容截斷
-                        author_name_override = None
+                        # 處理內容截斷與 Bot 名稱判斷
+                        ignore_token = self.ignore_after_token
                         bot_name = self.settings.get("BOT_NAME", "Bot")
-                        if self.ignore_after_token in content:
-                            content = content.split(self.ignore_after_token)[0]
-                            author_name_override = bot_name
+                        is_bot_msg = False
+
+                        if ignore_token in content:
+                            content = content.split(ignore_token)[0]
+                            is_bot_msg = True
+                        
+                        # 額外檢查：如果是機器人自己發的訊息，一律視為 Bot 訊息
+                        if msg.author.id == self.user.id:
+                            is_bot_msg = True
+                        
+                        # 決定顯示名稱 (用於對照表與訊息)
+                        if is_bot_msg:
+                            display_name = bot_name
+                        else:
+                            display_name = msg.author.display_name
+
+                        # 記錄作者資訊
+                        author_mapping[msg.author.id] = (msg.author.name, display_name)
                         
                         # Mentions 處理
                         if msg.mentions:
                             for user in msg.mentions:
-                                u_name_display = user.display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
+                                if user.id == self.user.id:
+                                    u_name_display = bot_name
+                                else:
+                                    u_name_display = user.display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
                                 content = content.replace(f"<@{user.id}>", f"@{u_name_display}")
                                 content = content.replace(f"<@!{user.id}>", f"@{u_name_display}")
 
@@ -380,9 +396,11 @@ class TaggedResponseBot(discord.Client):
                         if len(content) > self.settings.get("MAX_MSG_LENGTH", 150):
                             content = content[:self.settings.get("MAX_MSG_LENGTH", 150)] + "..."
 
-                        author_name = msg.author.display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
-                        if author_name_override:
-                            author_name = author_name_override
+                        # 決定最終顯示名稱 (一般用戶需截斷，Bot 不需)
+                        if is_bot_msg:
+                            author_name = display_name
+                        else:
+                            author_name = display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
 
                         if not content.strip() and not msg.attachments: continue
 

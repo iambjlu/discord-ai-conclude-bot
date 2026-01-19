@@ -57,10 +57,10 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     return {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 1,          # AI總結
+        "AI_SUMMARY_MODE": 2,          # AI總結
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
-        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
+        "LINK_SCREENSHOT_MODE": 0,     # 連結截圖
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
@@ -89,18 +89,27 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        # "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
-        "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemini-2.5-flash","gemma-3-27b-it"], # 模型列表
+        # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
         "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
-        "BOT_NAME": "🤖機器人",           # Bot 在對話歷史中的顯示名稱
+        "BOT_NAME": "機器人",           # Bot 在對話歷史中的顯示名稱
         "GEMINI_SUMMARY_FORMAT": """
-依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。
+依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名(以暱稱為主)，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。必須認真思考。
 ## [頻道名]
 (請條列四五個重點但只能一層)\n
 **提及的規劃**\n(請列出所有提到的時間規劃)\n
 **結論**\n(總結內容)\n
 """,
     }
+
+    # GitHub Actions 環境強制覆寫 (避免本地測試改壞 Config 影響線上)
+    if os.getenv('GITHUB_ACTIONS') == 'true':
+        print("🚀 偵測到 GitHub Actions 環境，強制將排程模式設為 1 (定時)")
+        settings["AI_SUMMARY_MODE"] = 1
+        settings["DAILY_QUOTE_MODE"] = 1
+        settings["LINK_SCREENSHOT_MODE"] = 1
+    
+    return settings
 
 def get_secrets():
     """讀取 .env 或環境變數，並回傳相關 Token 與 Channel ID"""
@@ -347,23 +356,37 @@ async def run_ai_summary(client, settings, secrets):
             channel_msgs = []
             
             async for msg in ch.history(after=target_time_ago, limit=None):
-                # 記錄作者資訊
-                author_mapping[msg.author.id] = (msg.author.name, msg.author.display_name)
 
                 content = msg.content
                 # 截斷標記
                 ignore_token = settings.get("IGNORE_TOKEN", "> 🤖 ")
-                author_name_override = None
                 bot_name = settings.get("BOT_NAME", "Bot")
+                is_bot_msg = False
 
                 if ignore_token in content:
                     content = content.split(ignore_token)[0]
-                    author_name_override = bot_name
+                    is_bot_msg = True
                 
+                # 額外檢查：如果是機器人自己發的訊息，一律視為 Bot 訊息
+                if msg.author.id == client.user.id:
+                    is_bot_msg = True
+                
+                # 決定顯示名稱 (用於對照表與訊息)
+                if is_bot_msg:
+                    display_name = bot_name
+                else:
+                    display_name = msg.author.display_name
+
+                # 記錄作者資訊 (更新對照表)
+                author_mapping[msg.author.id] = (msg.author.name, display_name)
+
                 # Mentions 處理
                 if msg.mentions:
                     for user in msg.mentions:
-                        u_name = user.display_name[:settings["AUTHOR_NAME_LIMIT"]]
+                        if user.id == client.user.id:
+                            u_name = bot_name
+                        else:
+                            u_name = user.display_name[:settings["AUTHOR_NAME_LIMIT"]]
                         content = content.replace(f"<@{user.id}>", f"@{u_name}")
                         content = content.replace(f"<@!{user.id}>", f"@{u_name}")
 
@@ -403,9 +426,12 @@ async def run_ai_summary(client, settings, secrets):
                     content = content[:settings.get("MAX_MSG_LENGTH", 500)] + "..."
 
                 created_at_local = msg.created_at.astimezone(tz).strftime(time_fmt)
-                author_name = msg.author.display_name[:settings["AUTHOR_NAME_LIMIT"]]
-                if author_name_override:
-                    author_name = author_name_override
+                
+                # 決定最終顯示名稱 (一般用戶需截斷，Bot 不需)
+                if is_bot_msg:
+                    author_name = display_name
+                else:
+                    author_name = display_name[:settings["AUTHOR_NAME_LIMIT"]]
 
                 if not content.strip() and not msg.attachments: continue
                 
