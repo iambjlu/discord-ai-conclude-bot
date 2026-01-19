@@ -51,6 +51,9 @@ TARGET_CHANNEL_ID=112233445566778899
 
 # 連結預覽的頻道ID
 TARGET_PREVIEW_ID=112233445566778899
+
+# 關鍵字觸發執行的指令 (可選)
+DEPLOY_COMMAND=git pull && pm2 restart bot
 ```
 
 ---
@@ -137,6 +140,9 @@ TARGET_PREVIEW_ID=112233445566778899
 *   **`TOTAL_MSG_LIMIT`**: 訊息抓取總額度 (預設 `150`)。若有回覆參照，會自動分配給最新訊息與回覆上下文。
 *   **`MAX_MSG_LENGTH`**: 單則訊息最大字數 (預設 `150`)，超過會被截斷，節省 Token。
 *   **`TAGGED_REPLY_PROMPT_TEMPLATE`**: AI 回應的人設與 Prompt 模板。
+*   **`ENABLE_EXEC_COMMAND`**: 是否開啟關鍵字執行指令功能 (`True`/`False`)。
+*   **`EXEC_COMMAND_KEYWORD`**: 當被標註的訊息中包含此關鍵字時觸發執行（例如 `update_bot_now`）。
+*   **`EXEC_COMMAND_ENV_NAME`**: 指定要從 `.env` 讀取的環境變數名稱，該變數儲存了實際執行的 Shell 指令。
 
 這些變數會在程式啟動時讀取，若是 `tagged_reply.py` 則需要在修改後重新啟動 Bot 生效。
 
