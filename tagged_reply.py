@@ -534,12 +534,12 @@ class TaggedResponseBot(discord.Client):
                             extra_info = f" + 被回覆訊息前後 {ref_limit} 則"
 
                         if "gemini" in used_model.lower():
-                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試使用此模型"
+                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試使用此模型。"
                         else:
-                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試存取更聰明的模型"
+                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試存取更聰明的模型。"
 
                         footer = (
-                            f"\n"
+                            f"\n\n"
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
                             f"{footer_model_text}\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
@@ -562,7 +562,7 @@ class TaggedResponseBot(discord.Client):
                              elif "503" in error_str or "Service Unavailable" in error_str:
                                  wait_msg = (
                                      "# ⚠️ 模型發生錯誤\n"
-                                     "Google服務器快被眾多使用者問爆了🫠\n"
+                                     "Google服務器快被世界上眾多使用者問爆了🫠\n"
                                      "你們可能要重試一下🥺\n"
                                      f"```json\n{error_str}\n```"
                                  )
