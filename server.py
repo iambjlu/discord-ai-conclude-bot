@@ -425,7 +425,8 @@ async def run_ai_summary(client, settings, secrets):
         # 生成用戶對照表
         mapping_section = ""
         if author_mapping:
-            mapping_lines = [f"- 用戶: {name}, 暱稱: {disp}" for uid, (name, disp) in author_mapping.items()]
+            name_limit = settings.get("AUTHOR_NAME_LIMIT", 4)
+            mapping_lines = [f"- 用戶: {name}, 暱稱: {disp[:name_limit]}" for uid, (name, disp) in author_mapping.items()]
             mapping_section = "[參與對話的用戶與伺服器暱稱對照表]\n" + "\n".join(mapping_lines) + "\n\n"
 
         final_messages_str = mapping_section + "\n".join(collected_output)
