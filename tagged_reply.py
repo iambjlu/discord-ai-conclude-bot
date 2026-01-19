@@ -333,6 +333,7 @@ class TaggedResponseBot(discord.Client):
                     for model_name in self.model_priority_list:
                         print(f"   🤖 嘗試使用模型: {model_name} ...")
                         try:
+                            print(prompt)
                             response = self.genai_client.models.generate_content(
                                 model=model_name,
                                 contents=prompt,
