@@ -372,44 +372,59 @@ class ImageGenerator:
         cards_html = ""
         for item in weather_data:
             c_name = html.escape(item['county'])
-            wx = html.escape(item['wx'])
-            pop = html.escape(item['pop'])
-            temp = f"{item['min_t']}°-{item['max_t']}°"
-            ci = html.escape(item['ci'])
             
-            # 根據降雨機率改變顏色/圖示
-            pop_val = int(pop) if pop.isdigit() else 0
-            
-            # 降雨圖示邏輯
-            # "如果降雨0%就把emoji用🌂表示"
-            pop_icon = "☔"
-            if pop == "0":
-                pop_icon = "🌂 " # Add space if needed
-            
-            # 簡單的天氣圖示判定
-            icon = "☁️" 
-            if "雨" in wx: icon = "🌧️"
-            elif "晴" in wx: icon = "☀️"
-            elif "陰" in wx: icon = "☁️"
-            elif "雲" in wx: icon = "⛅"
-            elif "雷" in wx: icon = "⛈️"
-            
-            # 卡片樣式
+            rows_html = ""
+            for f in item.get('forecasts', []):
+                # f['pop'] logic
+                f_pop = f['pop']
+                pop_val = int(f_pop) if f_pop.isdigit() else 0
+                pop_color = "#1565C0" if pop_val > 50 else "#E10600"
+                
+                # Icon mapping (reuse logic or simplify)
+                w_str = f['wx']
+                ci_str = f.get('ci', '')
+                
+                full_wx_str = w_str
+                if ci_str:
+                    full_wx_str += f" ({ci_str})"
+
+                icon = "☁️" 
+                if "雨" in w_str: icon = "🌧️"
+                elif "晴" in w_str: icon = "☀️"
+                elif "陰" in w_str: icon = "☁️"
+                elif "雲" in w_str: icon = "⛅"
+                elif "雷" in w_str: icon = "⛈️"
+                
+                # POP Icon
+                pop_icon = "☔"
+                if f_pop == "0":
+                    pop_icon = "🌂"
+                
+                # New POP logic: Text color + Shadow instead of badge
+                # Material Design Colors: Red 600 for high, Blue 600 for low
+                pop_color = "#E53935" if pop_val > 50 else "#1E88E5"
+                
+                rows_html += f"""
+                <div class="hourly-item">
+                    <div class="hourly-top">
+                        <span class="h-time">{f['time']}</span>
+                        <span class="h-icon">{icon}</span>
+                        <span class="h-temp">{f['temp']}°</span>
+                        <span class="h-pop" style="color: {pop_color}">{pop_icon} {f_pop}%</span>
+                    </div>
+                    <div class="hourly-bottom">
+                         <span class="h-wx">{full_wx_str}</span>
+                    </div>
+                </div>
+                """
+
             cards_html += f"""
             <div class="weather-item">
                 <div class="header">
                     <span class="county">{c_name}</span>
-                    <span class="icon">{icon}</span>
                 </div>
-                <div class="wx-text">{wx}</div>
-                <div class="temp">{temp}C</div>
-                <div class="details">
-                    <div class="detail-item">
-                        <span class="label ci-text">{ci}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="pop-val" style="color: {'#ff6b6b' if pop_val > 50 else '#4ecdc4'}">{pop_icon} {pop}%</span>
-                    </div>
+                <div class="hourly-list">
+                    {rows_html}
                 </div>
             </div>
             """
@@ -438,7 +453,8 @@ class ImageGenerator:
                     margin: 0; padding: 0;
                     width: fit-content;
                     height: fit-content;
-                    background: linear-gradient(180deg, #13131F 0%, #1A1A2E 50%, #0F3460 100%);
+                    /* Updated Gradient: Blue -> Dark Blue -> Red */
+                    background: linear-gradient(120deg, #0066b2 0%, #002b5e 50%, #d12e2e 100%);
                     font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
                     box-sizing: border-box;
                     color: white;
@@ -591,6 +607,71 @@ class ImageGenerator:
                 .pop-val {{
                     font-size: 42px;
                     font-weight: 700;
+                }}
+                
+                /* Hourly List Styles */
+                .hourly-list {{
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px; /* Slightly reduced gap */
+                    width: 100%;
+                }}
+                .hourly-item {{
+                    display: flex;
+                    flex-direction: column;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                    padding-bottom: 6px; /* Reduced padding */
+                    gap: 2px;
+                }}
+                .hourly-item:last-child {{ border-bottom: none; }}
+                
+                .hourly-top {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    width: 100%;
+                }}
+
+                .hourly-bottom {{
+                    display: flex;
+                    justify-content: flex-start;
+                    align-items: center;
+                    width: 100%;
+                    padding-left: 0; 
+                }}
+
+                /* Reduced sizes to make room */
+                .h-time {{ font-size: 30px; font-weight: 500; color: rgba(255,255,255,0.9); width: 100px; }}
+                .h-icon {{ font-size: 36px; width: 50px; text-align: center; }}
+                .h-temp {{ font-size: 36px; font-weight: 700; color: #ffd700; flex: 1; text-align: center; }}
+                
+                .h-pop {{ 
+                    font-size: 28px; 
+                    width: 130px; 
+                    /* Use flex center for the oval content */
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    
+                    background: rgba(255, 255, 255, 0.85);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    border-radius: 50px;
+                    padding: 4px 0;
+                    
+                    font-weight: 800;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                }}
+
+                /* wx text prominent */
+                .h-wx {{ 
+                    font-size: 24px;  /* Reduced from 32px */
+                    color: #ffffff;  /* White */
+                    width: 100%;
+                    text-align: left;
+                    padding-left: 0;
+                    margin-top: 4px;
+                    font-weight: 500;
                 }}
             </style>
         </head>

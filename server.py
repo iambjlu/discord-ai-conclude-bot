@@ -61,16 +61,16 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     settings = {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 1,          # AI總結
+        "AI_SUMMARY_MODE": 0,          # AI總結
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
-        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
-        "WEATHER_MODE": 1,             # 天氣預報 (0=停用, 1=定時, 2=強制)
+        "LINK_SCREENSHOT_MODE": 0,     # 連結截圖
+        "WEATHER_MODE": 2,             # 天氣預報 (0=停用, 1=定時, 2=強制)
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
         "LINK_SCREENSHOT_SCHEDULE_MODULO": 2,  # 連結截圖頻率 (每N小時，0, 2, 4...)
-        "WEATHER_SCHEDULE_MODULO": 6,          # 天氣預報頻率 (每N小時)
+        "WEATHER_SCHEDULE_MODULO": 4,          # 天氣預報頻率 (每N小時，0, 4, 8...)
         "SCHEDULE_DELAY_TOLERANCE": 1,         # 允許延遲執行的時數 (應對 GH Actions 延遲，單位: 小時)
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         # 每日金句固定於 00:xx 執行 (24小時一次)
@@ -962,55 +962,135 @@ async def run_link_screenshot(client, settings, secrets):
     print()
 
 
-def get_weather_data(api_key, counties):
-    # 預報 API 使用的是「縣市名稱」而不是測站 ID
-    
-    # 36小時天氣預報 API
-    url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-C0032-001?Authorization={api_key}"
+def get_weather_data(api_key, counties, tz):
+    """
+    使用 F-D0047-089 (全台未來2天，含逐時溫度)
+    回傳格式: list of {'county':..., 'forecasts': [{'time':..., 'temp':..., 'wx':..., 'pop':...}]}
+    """
+    url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-D0047-089?Authorization={api_key}&locationName={','.join(counties)}"
     results = []
 
     try:
-        response = requests.get(url)
+        # verify=False 避免部分環境 SSL 錯誤
+        response = requests.get(url, verify=False)
         data = response.json()
 
         if data.get("success") != "true":
             print("API 請求失敗，請檢查 Key 有沒有填對。")
             return []
 
-        locations = data["records"]["location"]
+        if not data.get("records") or "Locations" not in data["records"]:
+            print("API 回傳結構異常 (Missing Locations)")
+            return []
+
+        locations = data["records"]["Locations"][0]["Location"]
+        
+        # 基準時間: 當前小時 (例如 16:45 -> 16:00)
+        now = datetime.now(tz)
+        current_hour_dt = now.replace(minute=0, second=0, microsecond=0)
 
         for county in counties:
-            # 從回傳資料中篩選出我們要的縣市
-            target = next((loc for loc in locations if loc["locationName"] == county), None)
+            loc = next((l for l in locations if l["LocationName"] == county), None)
+            if not loc: continue
             
-            if target:
-                elements = target["weatherElement"]
-                
-                # 這裡拿的是「第一個時段」(index 0)，即未來 12 小時的預報
-                # Wx: 天氣現象, PoP: 降雨機率, MinT: 最低溫, MaxT: 最高溫
-                wx = elements[0]["time"][0]["parameter"]["parameterName"]
-                pop = elements[1]["time"][0]["parameter"]["parameterName"]
-                min_t = elements[2]["time"][0]["parameter"]["parameterName"]
-                max_t = elements[4]["time"][0]["parameter"]["parameterName"]
-                # CI: 舒適度
-                ci = elements[3]["time"][0]["parameter"]["parameterName"]
+            temps = []
+            wxs = []
+            pops = []
+            cis = []
 
-                start_time = elements[0]["time"][0]["startTime"]
-                end_time = elements[0]["time"][0]["endTime"]
+            for elem in loc["WeatherElement"]:
+                ename = elem["ElementName"]
+                if ename == "溫度": temps = elem["Time"]
+                elif ename == "天氣現象": wxs = elem["Time"]
+                elif ename == "3小時降雨機率": pops = elem["Time"]
+                elif ename == "舒適度指數": cis = elem["Time"]
+            
+            # 整理未來 6 小時資料
+            # 1. 篩選 Temperature (逐時) >= current_hour_dt
+            #    且只取前 6 筆
+            forecasts = []
+            
+            # 預先排序確保順序
+            temps.sort(key=lambda x: x["DataTime"])
+            
+            count = 0
+            for t_item in temps:
+                t_dt = datetime.fromisoformat(t_item["DataTime"])
+                # 簡單判定：若資料時間 >= 當前小時 (或者允許前一小時?)
+                # user 說 4:40 看 -> 顯示 4, 5, 6...
+                # 若 t_dt 是 04:00 (timestamp), current is 04:40. t_dt < current.
+                # 但 user 想看 4點的資料. 所以 t_dt >= current_hour_dt 即可.
+                if t_dt >= current_hour_dt:
+                    t_val = t_item["ElementValue"][0]["Temperature"]
+                    
+                    # 找對應的 Wx 和 PoP (區間包含 t_dt)
+                    # Wx/PoP 是 3h 區間. StartTime <= t_dt < EndTime
+                    # 若剛好等於 EndTime 則不含? 通常是 [Start, End)
+                    
+                    curr_wx = "???"
+                    curr_pop = "-"
+                    curr_ci = ""
+                    
+                    # Find Wx
+                    for w in wxs:
+                        st = datetime.fromisoformat(w["StartTime"])
+                        et = datetime.fromisoformat(w["EndTime"])
+                        if st <= t_dt < et:
+                            curr_wx = w["ElementValue"][0]["Weather"]
+                            break
+                    
+                    # Find PoP
+                    for p in pops:
+                        st = datetime.fromisoformat(p["StartTime"])
+                        et = datetime.fromisoformat(p["EndTime"])
+                        if st <= t_dt < et:
+                            curr_pop = p["ElementValue"][0]["ProbabilityOfPrecipitation"]
+                            break
+                            
+                    # Find CI
+                    for c in cis:
+                        # CI 也是逐時 (DataTime)
+                        if c["DataTime"] == t_item["DataTime"]:
+                            curr_ci = c["ElementValue"][0]["ComfortIndexDescription"]
+                            break
+
+                    forecasts.append({
+                        "time": t_dt.strftime("%H:%M"), # 04:00
+                        "temp": t_val,
+                        "wx": curr_wx,
+                        "pop": curr_pop,
+                        "ci": curr_ci
+                    })
+                    
+                    count += 1
+                    if count >= 6: break
+            
+            if forecasts:
+                # 組裝結果
+                # time_range 用第一筆到最後一筆
+                # 需包含日期: YYYY/MM/DD HH:MM ~ HH:MM
+                # 從原始資料找日期 (因為 forecasts 裡的 time 只有 HH:MM)
+                # 最簡單用 current_hour_dt 或 forecasts 的 loop 變數
+                # 但 forecasts loop 裡面 t_dt 是最後一個. 
+                # Better: retrieve start date from first forecast logic?
+                # Actually, `count` loop runs 6 times. We can capture text there?
+                # Or just grab current time since it's "now" based?
+                # The forecasts start from current_hour_dt.
+                
+                s_dt = current_hour_dt
+                e_dt = forecasts[-1]['time'] # Wait, this is string.
+                # Let's reconstruct consistent string.
+                
+                date_str = s_dt.strftime("%Y/%m/%d")
+                start_str = forecasts[0]['time']
+                end_str = forecasts[-1]['time']
                 
                 results.append({
                     "county": county,
-                    "wx": wx,
-                    "pop": pop,
-                    "min_t": min_t,
-                    "max_t": max_t,
-                    "ci": ci,
-                    "time_range": f"{start_time[5:16]} ~ {end_time[5:16]}"
+                    "forecasts": forecasts,
+                    "time_range": f"{date_str} {start_str} ~ {end_str}"
                 })
 
-            else:
-                print(f"找不到 {county} 的資料。")
-                
         return results
 
     except Exception as e:
@@ -1044,21 +1124,20 @@ async def run_weather_forecast(client, settings, secrets):
         print("   ❌ 無 WEATHER_KEY，跳過")
         return
 
-    # 執行捉取
-    weather_data_list = get_weather_data(secrets['WEATHER_KEY'], settings['WEATHER_COUNTIES'])
+    # 執行捉取 (傳入 TZ)
+    weather_data_list = get_weather_data(secrets['WEATHER_KEY'], settings['WEATHER_COUNTIES'], settings['TZ'])
     
     if not weather_data_list:
         print("   ⚠️ 執行完畢但無資料")
         return
 
-    # 生成文字報告
+    # 生成文字報告 (簡易版)
     text_report = ""
-    for item in weather_data_list:
-        text_report += f"### {item['county']} 今日預報\n"
-        text_report += f"預報時段 : {item['time_range']}\n"
-        text_report += f"天氣狀態 : {item['wx']} ({item['ci']})\n"
-        text_report += f"降雨機率 : {item['pop']}%\n"
-        text_report += f"氣溫區間 : {item['min_t']} °C - {item['max_t']} °C\n\n"
+    for item in weather_data_list[:3]: # 只列出前幾個避免太長
+        text_report += f"### {item['county']} ({item['time_range']})\n"
+        for f in item['forecasts']:
+             text_report += f"  {f['time']} | {f['temp']}°C | {f['wx']} | ☔{f['pop']}%\n"
+        text_report += "\n"
 
     # 優先使用 TARGET_WEATHER_ID，若無則 fallback 到 TARGET_CHANNEL_ID
     target_ch_id = secrets.get('TARGET_WEATHER_ID')
