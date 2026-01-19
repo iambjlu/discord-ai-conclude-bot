@@ -55,7 +55,7 @@ from renderer import ImageGenerator
 
 def get_settings():
     """回傳使用者偏好的設定參數"""
-    return {
+    settings = {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
         "AI_SUMMARY_MODE": 2,          # AI總結
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
