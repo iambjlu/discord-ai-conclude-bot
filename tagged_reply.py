@@ -146,7 +146,7 @@ class TaggedResponseBot(discord.Client):
                     print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行指令: {cmd}")
                     try:
                         # 使用 reply 告知使用者，然後直接執行
-                        await message.reply(f"🚀 收到關鍵字，機器人正在檢查 OTA 更新...\n如果有的話會立即安裝，請稍候。\n安裝完成可以在「成員」列表看到我在線上(🟢)")
+                        await message.reply(f"⚙️ 機器人正在檢查 OTA 更新\n如果有的話會立即安裝，請稍候。\n安裝完成後可以在「成員」列表看到我在線上(🟢)\n\n> -# 你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新")
                         os.system(cmd)
                         # 執行指令後直接 return，避免進入下方的 AI 回應與歷史抓取邏輯
                         return
