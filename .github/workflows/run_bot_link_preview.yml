@@ -32,6 +32,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_weather_forecast:
+        description: "強制執行 天氣預報"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   run-bot:
@@ -65,6 +70,9 @@ jobs:
           FORCE_AI_SUMMARY: ${{ github.event.inputs.force_ai_summary || 'false' }}
           FORCE_DAILY_QUOTE: ${{ github.event.inputs.force_daily_quote || 'false' }}
           FORCE_LINK_SCREENSHOT: ${{ github.event.inputs.force_link_screenshot || 'false' }}
+          FORCE_WEATHER_FORECAST: ${{ github.event.inputs.force_weather_forecast || 'false' }}
+          WEATHER_KEY: ${{ secrets.WEATHER_KEY }}
+          TARGET_WEATHER_ID: ${{ secrets.TARGET_WEATHER_ID }}
           PYTHONUNBUFFERED: "1"
         run: |
           python server.py
