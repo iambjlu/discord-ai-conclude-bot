@@ -553,16 +553,18 @@ class TaggedResponseBot(discord.Client):
                              error_str = str(last_error)
                              if "429" in error_str or "Resource has been exhausted" in error_str:
                                  wait_msg = (
-                                     "我的配額被你們問爆了啦🫠\n"
-                                     "你們可以一分鐘後或是明天重試看看嗎🥺\n"
-                                     f"# ⚠️ 模型發生錯誤\n```json\n{error_str}\n```"
+                                    "# ⚠️ 模型發生錯誤\n"
+                                     "我的配額被你們問爆了啦🫠"
+                                     "你們可以一分鐘後或是明天重試看看嗎🥺\n\n"
+                                     f"```json\n{error_str}\n```"
                                  )
                                  await message.reply(wait_msg)
                              elif "503" in error_str or "Service Unavailable" in error_str:
                                  wait_msg = (
-                                     "我被你們問爆了啦🫠\n"
+                                     "# ⚠️ 模型發生錯誤\n"
+                                     "Google服務器快被眾多使用者問爆了🫠\n"
                                      "你們可能要重試一下🥺\n"
-                                     f"# ⚠️ 模型發生錯誤\n```json\n{error_str}\n```"
+                                     f"```json\n{error_str}\n```"
                                  )
                                  await message.reply(wait_msg)
                              else:
