@@ -10,7 +10,10 @@ def check_requirements():
     }
     missing = []
     for module_name, package_name in required_packages.items():
-        if importlib.util.find_spec(module_name) is None:
+        try:
+            if importlib.util.find_spec(module_name) is None:
+                missing.append(package_name)
+        except (ImportError, ModuleNotFoundError):
             missing.append(package_name)
     
     if missing:
