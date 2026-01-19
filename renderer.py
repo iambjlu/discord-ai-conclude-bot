@@ -590,7 +590,7 @@ class ImageGenerator:
                 
                 .pop-val {{
                     font-size: 42px;
-                    font-weight: 900;
+                    font-weight: 700;
                 }}
             </style>
         </head>
