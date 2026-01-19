@@ -90,7 +90,7 @@ def get_settings():
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
         "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
         # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
-        "IGNORE_TOKEN": "> 🤖 ",         # 截斷標記
+        "IGNORE_TOKEN": "> -# 🤖",         # 截斷標記
         "BOT_NAME": "🤖機器人",           # Bot 在對話歷史中的顯示名稱
         "GEMINI_SUMMARY_FORMAT": """
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。
@@ -465,9 +465,9 @@ async def run_ai_summary(client, settings, secrets):
                             end_str = now.strftime('%H:%M')
                             
                             if "gemini" in used_model_name.lower():
-                                footer_model_text = f"> 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{used_model_name}」驅動。"
+                                footer_model_text = f"> -# 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{used_model_name}」驅動。"
                             else:
-                                footer_model_text = f"> 🤖 以上重點摘要由 Google Gemma 開放權重模型「{used_model_name}」驅動。"
+                                footer_model_text = f"> -# 🤖 以上重點摘要由 Google Gemma 開放權重模型「{used_model_name}」驅動。"
 
                             report = (
                                 f"# ✨ {hours} 小時重點摘要出爐囉！\n"
@@ -475,7 +475,7 @@ async def run_ai_summary(client, settings, secrets):
                                 f"\n"
                                 f"{generated_text}\n"
                                 f"{footer_model_text}\n"
-                                f"> 🤓 AI 總結內容僅供參考，敬請核實。\n"
+                                f"> -# 🤓 AI 總結內容僅供參考，敬請核實。\n"
                                 f"{generate_choice_solver(settings)}"
                             )
                             await send_split_message(target_ch, report)
