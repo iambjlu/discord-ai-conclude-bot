@@ -114,11 +114,11 @@ class TaggedResponseBot(discord.Client):
             await self.check_ota_status_on_startup()
 
     async def check_ota_status_on_startup(self):
-        """搜尋過去 3 分鐘內的訊息，找出最後發出更新指令的頻道並回報"""
+        """搜尋近期的訊息，找出最後發出更新指令的頻道並回報"""
         keyword = self.settings.get("EXEC_COMMAND_KEYWORD", "update_bot")
-        # 設定 3 分鐘的時間範圍
+        # 設定 2 分鐘的時間範圍
         time_limit = datetime.now(timezone.utc) - timedelta(minutes=2)
-        print(f"🔍 正在檢查 3 分鐘內是否有頻道在等待更新回報 (關鍵字: {keyword})...")
+        print(f"🔍 正在檢查近期是否有頻道在等待更新回報 (關鍵字: {keyword})...")
         
         target_message = None
 
