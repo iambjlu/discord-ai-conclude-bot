@@ -89,8 +89,8 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
-        # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
+        # "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
         "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
         "BOT_NAME": "🤖機器人",           # Bot 在對話歷史中的顯示名稱
         "GEMINI_SUMMARY_FORMAT": """
@@ -430,7 +430,7 @@ async def run_ai_summary(client, settings, secrets):
             mapping_section = "[參與對話的用戶與伺服器暱稱對照表]\n" + "\n".join(mapping_lines) + "\n\n"
 
         final_messages_str = mapping_section + "\n".join(collected_output)
-        print(f"--- 收集到的訊息 ---\n{final_messages_str}\n--------------------")
+        # print(f"--- 收集到的訊息 ---\n{final_messages_str}\n--------------------")
         print("   訊息收集完成，準備進行 AI 總結...")
 
         target_ch_id = secrets["TARGET_CHANNEL_ID"]
@@ -457,6 +457,8 @@ async def run_ai_summary(client, settings, secrets):
                         
                         ai_client = genai.Client(api_key=gemini_key)
                         prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
+
+                        print(final_messages_str)
                         
                         for model_name in param_model_list:
                             print(f"   🔄 嘗試模型: {model_name}...")
@@ -531,6 +533,7 @@ async def run_daily_quote(client, settings, secrets):
     tz = settings["TZ"]
     now = datetime.now(tz)
     force_run = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
+    mode = settings.get("DAILY_QUOTE_MODE", 1)
 
     if mode == 0:
         print("⏹️ 每日金句功能已停用 (Mode 0)，跳過。")

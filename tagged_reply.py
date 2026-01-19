@@ -268,6 +268,8 @@ class TaggedResponseBot(discord.Client):
                     # 使用 dict 是為了稍後去重
                     all_collected_msgs = {} 
                     author_mapping = {} # 記錄作者用戶名與暱稱的對應關係
+                    # 務必將當前觸發者加入對照表 (因為 history 迴圈會跳過當前訊息)
+                    author_mapping[message.author.id] = (message.author.name, message.author.display_name)
                     
                     if ref_msg_ctx and message.reference and message.reference.message_id:
                          try:
@@ -424,6 +426,7 @@ class TaggedResponseBot(discord.Client):
 
                     print(f"   📄 總共收集到 {len(sorted_lines)} 則訊息 (已去重)")
                     # print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
+                    print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
 
                     # 5. 呼叫 AI 模型 (嘗試優先順序列表)
                     if not self.genai_client:
