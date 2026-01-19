@@ -111,8 +111,28 @@ class TaggedResponseBot(discord.Client):
             return
 
         # 2. 檢查是否被提及 (Tagged)
-        if self.user in message.mentions:
-            print(f"📨 收到提及: {message.author} 在 #{message.channel}")
+        # 2. 檢查是否被提及 (Tagged) 或 回覆 (Reply)
+        is_triggered = self.user in message.mentions
+
+        # 若未被直接 mention，檢查是否為對機器人的回覆 (Reply without ping)
+        if not is_triggered and message.reference and message.reference.message_id:
+            try:
+                # 嘗試從 cache 取得
+                ref_msg = message.reference.resolved
+                
+                # 若 cache 無資料，則主動抓取 (僅限同頻道)
+                if ref_msg is None and message.channel.id == message.reference.channel_id:
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                
+                if ref_msg and ref_msg.author == self.user:
+                    is_triggered = True
+                    print(f"   ↩️ 偵測到回覆 (無 Tag): {message.author} 回覆了機器人")
+            except Exception as e:
+                # 抓取失敗或是跨頻道回覆等情況，忽略即可
+                pass
+
+        if is_triggered:
+            print(f"📨 收到觸發 (Mention/Reply): {message.author} 在 #{message.channel}")
             
             # 顯示正在輸入...
             async with message.channel.typing():
