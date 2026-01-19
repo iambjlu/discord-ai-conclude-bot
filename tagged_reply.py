@@ -199,7 +199,7 @@ class TaggedResponseBot(discord.Client):
                 print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行更新並重啟")
                 try:
                     # 使用 reply 告知使用者，然後直接執行
-                    await message.reply(f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n> -# 🤖 提示：你可以提及我並寫上「{self.settings.get('EXEC_COMMAND_KEYWORD')}」來檢查更新並重啟機器人")
+                    await message.reply(f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n> -# 🤖 提示：你可以提及我並寫上「`{self.settings.get('EXEC_COMMAND_KEYWORD')}`」來檢查更新並重啟機器人")
                     
                     # 🚀 重要：先優雅地關閉 Bot 連線，避免 Gateway 噴錯
                     print("🔄 正在關閉 Discord 連線並準備重啟...")
@@ -534,9 +534,9 @@ class TaggedResponseBot(discord.Client):
                             extra_info = f" + 被回覆訊息前後 {ref_limit} 則"
 
                         if "gemini" in used_model.lower():
-                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試使用此模型。"
+                            footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
                         else:
-                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「/聰明模型」以嘗試存取更聰明的模型。"
+                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
 
                         footer = (
                             f"\n\n"
