@@ -57,7 +57,7 @@ def get_settings():
         "AI_SUMMARY_MODE": 1,          # AI總結
         "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
         "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
-        "LINK_SCREENSHOT_MODE": 2,     # 連結截圖
+        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
@@ -79,12 +79,16 @@ def get_settings():
         # --- Gemini AI 總結 ---
         
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
+        "MAX_MSG_LENGTH": 500,           # 單則訊息最大長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL": "gemini-3-flash-preview", 
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemma-3-27b-it"], # 模型列表
+        # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
+        "IGNORE_TOKEN": "> 🤖 ",         # 截斷標記
+        "BOT_NAME": "🤖機器人",           # Bot 在對話歷史中的顯示名稱
         "GEMINI_SUMMARY_FORMAT": """
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。
 ## [頻道名]
@@ -335,6 +339,14 @@ async def run_ai_summary(client, settings, secrets):
             
             async for msg in ch.history(after=target_time_ago, limit=None):
                 content = msg.content
+                # 截斷標記
+                ignore_token = settings.get("IGNORE_TOKEN", "> 🤖 ")
+                author_name_override = None
+                bot_name = settings.get("BOT_NAME", "Bot")
+
+                if ignore_token in content:
+                    content = content.split(ignore_token)[0]
+                    author_name_override = bot_name
                 
                 # Mentions 處理
                 if msg.mentions:
@@ -373,8 +385,15 @@ async def run_ai_summary(client, settings, secrets):
 
                 # 表情與時間
                 content = re.sub(r'<a?:\w+:\d+>', '(貼圖)', content)
+
+                # 長度截斷
+                if len(content) > settings.get("MAX_MSG_LENGTH", 500):
+                    content = content[:settings.get("MAX_MSG_LENGTH", 500)] + "..."
+
                 created_at_local = msg.created_at.astimezone(tz).strftime(time_fmt)
                 author_name = msg.author.display_name[:settings["AUTHOR_NAME_LIMIT"]]
+                if author_name_override:
+                    author_name = author_name_override
 
                 if not content.strip() and not msg.attachments: continue
                 
@@ -408,41 +427,65 @@ async def run_ai_summary(client, settings, secrets):
                 if final_messages_str:
                     if gemini_key:
                         print("   🤖 呼叫 Gemini 中...")
-                        try:
-                            ai_client = genai.Client(api_key=gemini_key)
-                            prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
-                            
-                            response = ai_client.models.generate_content(
-                                model=settings["GEMINI_MODEL"],
-                                contents=prompt,
-                                config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
-                            )
-                            
-                            if response.text:
-                                print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
-                                start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
-                                end_str = now.strftime('%H:%M')
-                                report = (
-                                    f"# ✨ {hours} 小時重點摘要出爐囉！\n"
-                                    f"** 🕘 {start_str} ~ {end_str}**\n"
-                                    f"\n"
-                                    f"{response.text}\n"
-                                    f"\n"
-                                    f"> 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{settings['GEMINI_MODEL']}」驅動。\n"
-                                    f"> 🤓 AI 總結內容僅供參考，敬請核實。\n"
-                                    f"{generate_choice_solver(settings)}"
+                        
+                        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-3-flash-preview"])
+                        # 相容舊設定: 若只有 GEMINI_MODEL 則轉為 list
+                        if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
+                             param_model_list = [settings["GEMINI_MODEL"]]
+
+                        generated_text = None
+                        used_model_name = None
+                        
+                        ai_client = genai.Client(api_key=gemini_key)
+                        prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
+                        
+                        for model_name in param_model_list:
+                            print(f"   🔄 嘗試模型: {model_name}...")
+                            try:
+                                response = ai_client.models.generate_content(
+                                    model=model_name,
+                                    contents=prompt,
+                                    config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
                                 )
-                                await send_split_message(target_ch, report)
-                                print("   ✅ AI 總結已發送")
-                        except Exception as e:
-                            print(f"   ❌ Gemini 錯誤: {e}")
+                                if response.text:
+                                    generated_text = response.text
+                                    used_model_name = model_name
+                                    print(f"   ✅ 模型 {model_name} 成功回應")
+                                    print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
+                                    break
+                            except Exception as e:
+                                print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                                continue
+
+                        if generated_text and used_model_name:
+                            start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
+                            end_str = now.strftime('%H:%M')
+                            
+                            if "gemini" in used_model_name.lower():
+                                footer_model_text = f"> 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{used_model_name}」驅動。"
+                            else:
+                                footer_model_text = f"> 🤖 以上重點摘要由 Google Gemma 開放權重模型「{used_model_name}」驅動。"
+
+                            report = (
+                                f"# ✨ {hours} 小時重點摘要出爐囉！\n"
+                                f"** 🕘 {start_str} ~ {end_str}**\n"
+                                f"\n"
+                                f"{generated_text}\n"
+                                f"{footer_model_text}\n"
+                                f"> 🤓 AI 總結內容僅供參考，敬請核實。\n"
+                                f"{generate_choice_solver(settings)}"
+                            )
+                            await send_split_message(target_ch, report)
+                            print("   ✅ AI 總結已發送")
+                        else:
+                            print(f"   ❌ 所有模型嘗試皆失敗或無回應")
                             error_payload = {
                                 "status": "Failed",
                                 "module": "Gemini AI Summary",
-                                "reason": str(e),
+                                "reason": "All models in priority list failed.",
                                 "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                             }
-                            error_msg = f"## ⚠️ Gemini 發生錯誤\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
+                            error_msg = f"## ⚠️ Gemini 發生錯誤 (所有模型嘗試失敗)\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
                             await send_split_message(target_ch, f"{error_msg}\n{generate_choice_solver(settings)}")
                     else:
                          print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")

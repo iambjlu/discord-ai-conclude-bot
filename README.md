@@ -57,37 +57,94 @@ TARGET_PREVIEW_ID=112233445566778899
 
 ## 🚀 如何執行 (Usage)
 
-直接執行 Python 腳本即可啟動機器人：
+本專案包含兩個主要的 Python 執行檔，分別對應不同的運作模式：
 
-```bash
-python3 server.py
-```
+### 1. 排程機器人 (`server.py`)
+這是主要的**排程執行腳本**。設計上是讓系統定時觸發（例如透過 Cronjob 或 GitHub Actions），執行完任務後會**自動結束程式**。
 
-### 啟動流程：
-1. 程式會自動檢查是否已安裝必要套件，若缺少會嘗試自動安裝。
-2. 載入 `.env` 設定檔。
-3. 機器人登入 Discord。
-4. **立即執行**：「最近 X 小時訊息摘要」功能。
-5. **排程執行**：若現在時間接近午夜 (00:00 - 00:10)，會執行「每日金句」統計；否則會顯示非執行時段並結束（視 `zero_clock_only` 設定而定）。
+*   **功能**：定期發送訊息摘要 (AI Summary)、每日金句 (Daily Quote)、連結預覽 (Link Screenshot)。
+*   **執行方式**：
+    ```bash
+    python3 server.py
+    ```
+*   **運作邏輯**：
+    1.  啟動並登入 Discord。
+    2.  檢查現在時間是否符合 `AI_SUMMARY_SCHEDULE_MODULO` 或 `LINK_SCREENSHOT_SCHEDULE_MODULO` 的倍數小時。
+    3.  檢查現在是否為午夜 (00:00) 以決定是否執行每日金句。
+    4.  執行所有符合條件的任務。
+    5.  任務完成後，程式自動關閉 (Exit)。
+    *   *(若要在測試時強制執行所有功能，可將 `*_MODE` 設定改為 `2`)*
+
+### 2. 對話機器人 (`tagged_reply.py`)
+這是**互動式機器人**。需要**常駐執行 (Keep Alive)**，它會監聽頻道中的提及 (Mention) 並做出回應。
+
+*   **功能**：當使用者 Tag 機器人時（例如 `@Bot 30` 或單純 `@Bot`），回覆該頻道最新的 30 則對話摘要與回應。
+    *   若**回覆 (Reply)** 某則訊息並 Tag Bot，會自動包含該訊息前後一段時間的上下文。
+    *   支援指定抓取數量，例如 `@Bot 50` 代表抓取最新 50 則。
+*   **執行方式**：
+    ```bash
+    python3 tagged_reply.py
+    ```
+    *(請確保此程式在背景持續運作，例如使用 `nohup`, `tmux` 或 `Docker`)*
+
+### 3. 發送公告 (`sender.py`)
+這是**單次執行腳本**，用於手動發送公告或訊息至指定頻道。
+
+*   **功能**：修改程式碼中的 `MESSAGE_TO_SEND` 變數文字，執行後會立即發送並結束。
+*   **執行方式**：
+    1.  開啟 `sender.py` 編輯 `MESSAGE_TO_SEND` 內容。
+    2.  執行：
+        ```bash
+        python3 sender.py
+        ```
 
 ---
 
 ## ⚙️ 進階設定 (Configuration)
 
-您可以在 `server.py` 程式碼中找到 `MyClient.on_ready` 方法內的設定區塊進行微調：
+您可以在 `server.py` 的 `get_settings()` 函式中調整變數。
 
-*   `recent_msg_hours = 4`: 設定摘要功能要抓取最近幾小時的訊息。
-*   `gemini_model = "gemini-3-flash-preview"`: 設定使用的 Gemini 模型版本。
-*   `gemini_token_limit = 4000`: 設定 AI 回應的長度上限。
-*   `LINK_SCREENSHOT_ENABLED = True`: 開啟/關閉連結自動截圖功能。
-*   `DAILY_QUOTE_IMAGE_ENABLED = True`: 開啟/關閉金句圖片生成功能。
-*   `zero_clock_only = True`: 若設為 `True`，每日金句功能只會在午夜執行；設為 `False` 則每次啟動都會執行（方便測試）。
+### 功能開關 (Modes)
+*   **`AI_SUMMARY_MODE`**: AI 摘要功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
+*   **`DAILY_QUOTE_MODE`**: 每日金句功能 (`0`: 關閉, `1`: 僅午夜執行, `2`: 強制執行)
+*   **`DAILY_QUOTE_IMAGE_MODE`**: 金句圖片生成 (`0`: 關閉, `1`: 純文字, `2`: 產生圖片)
+*   **`LINK_SCREENSHOT_MODE`**: 連結預覽功能 (`0`: 關閉, `1`: 排程, `2`: 強制執行)
+
+### 排程與範圍 (Schedule & Ranges)
+*   **`AI_SUMMARY_SCHEDULE_MODULO`**: AI 摘要的執行間隔小時數 (預設 `4`, 即 0, 4, 8... 點執行)。
+*   **`LINK_SCREENSHOT_SCHEDULE_MODULO`**: 連結截圖的執行間隔小時數 (預設 `2`)。
+*   **`RECENT_MSG_HOURS`**: AI 摘要要抓取「前幾小時」的訊息 (預設 `5`)。
+*   **`LINK_SCREENSHOT_HOURS`**: 連結截圖要抓取「前幾小時」的連結 (預設 `3`)。
+*   **`DAYS_AGO`**: 每日金句要統計「幾天前」的資料 (預設 `1` 代表昨天)。
+
+### 內容顯示 (Display)
+*   **`AUTHOR_NAME_LIMIT`**: 成員名稱顯示的最長字元數。
+*   **`SHOW_DATE`**: 時間戳記是否顯示日期 (`True`/`False`)。
+*   **`SHOW_SECONDS`**: 時間戳記是否顯示秒數。
+*   **`SHOW_ATTACHMENTS`**: 是否顯示附件連結。
+*   **`SIMPLIFY_LINKS`**: 是否將長連結簡化顯示 (例如只顯示網域或 Embed 標題)。
+*   **`MINESWEEPER_ROWS`** / **`COLS`** / **`MINES`**: 摘要結尾附帶的踩地雷小遊戲設定。
+*   **`BOT_NAME`**: 當機器人發言（包含 `ignore_token`）被讀取到時，替換成的顯示名稱（預設為 "Bot"）。
+
+### Google Gemini AI 設定
+*   **`GEMINI_TOKEN_LIMIT`**: AI 回應的最大 Token 數 (預設 `120000`)。
+*   **`GEMINI_MODEL_PRIORITY_LIST`**: 優先使用的模型列表，會依序嘗試直到成功。
+    *   範例: `["gemini-3-flash-preview", "gemma-3-27b-it", "gemma-3-12b-it", ...]`
+*   **`IGNORE_TOKEN`**: 訊息截斷標記，若讀取到此符號，之後的內容會被忽略 (避免 Bot 讀到自己的摘要)。
+*   **`GEMINI_SUMMARY_FORMAT`**: 給 AI 的 Prompt 模板，定義摘要的 Markdown 格式。
+ 
+### 對話機器人 (tagged_reply.py) 設定
+*   **`TOTAL_MSG_LIMIT`**: 訊息抓取總額度 (預設 `150`)。若有回覆參照，會自動分配給最新訊息與回覆上下文。
+*   **`MAX_MSG_LENGTH`**: 單則訊息最大字數 (預設 `150`)，超過會被截斷，節省 Token。
+*   **`TAGGED_REPLY_PROMPT_TEMPLATE`**: AI 回應的人設與 Prompt 模板。
+
+這些變數會在程式啟動時讀取，若是 `tagged_reply.py` 則需要在修改後重新啟動 Bot 生效。
 
 ---
 
 ## ☁️ GitHub Actions 自動排程設定
 
-本專案已包含 `.github/workflows/run_bot.yml`，設定為每 4 小時執行一次（0, 4, 8, 12, 16, 20 時）。
+本專案已包含 `.github/workflows/run_bot_link_preview.yml`，設定為每 4 小時執行一次（0, 4, 8, 12, 16, 20 時）。
 若要啟用此功能，請在您的 GitHub Repository 完成以下設定：
 
 1.  進入 Repo 的 **Settings**。
