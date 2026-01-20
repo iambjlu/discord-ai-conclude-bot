@@ -48,8 +48,8 @@ def get_settings():
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         "BOT_NAME": "機器人",               # Bot 在對話歷史中的顯示名稱
-        "TOTAL_MSG_LIMIT": 50,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
-        "MAX_MSG_LENGTH": 100,             # 單則訊息最大長度 (超過截斷)
+        "TOTAL_MSG_LIMIT": 40,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
+        "MAX_MSG_LENGTH": 60,             # 單則訊息最大長度 (超過截斷)
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
