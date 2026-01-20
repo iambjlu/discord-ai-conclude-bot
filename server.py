@@ -849,11 +849,20 @@ async def run_link_screenshot(client, settings, secrets):
 
         # 收集連結
         captured_links = []
-        for channel_id in secrets["SOURCE_CHANNEL_IDS"]:
+        
+        # 整合要掃描的頻道 (Source + Target Preview)
+        scan_channel_ids = set(secrets["SOURCE_CHANNEL_IDS"])
+        if secrets["TARGET_PREVIEW_ID"]:
+            scan_channel_ids.add(secrets["TARGET_PREVIEW_ID"])
+
+        for channel_id in scan_channel_ids:
             ch = client.get_channel(channel_id)
             if not ch: continue
             print(f"   掃描連結: #{ch.name}")
             async for msg in ch.history(after=target_time_ago, limit=None):
+                if msg.author.id == client.user.id:
+                    continue
+
                 urls = re.findall(r'(https?://\S+)', msg.content)
                 for url in urls:
                     captured_links.append((url, msg))
