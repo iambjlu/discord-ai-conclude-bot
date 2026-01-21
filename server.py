@@ -422,6 +422,13 @@ async def run_ai_summary(client, settings, secrets):
             if not ch: continue
             
             print(f"   正在掃描: #{ch.name}")
+            
+            # 確保機器人本身在對照表中 (取得當前頻道的機器人真實暱稱)
+            if ch.guild and client.user.id not in author_mapping:
+                 bot_member = ch.guild.me
+                 # 雖然稍後迴圈內的訊息可能會更新此值，但預先加入可確保即使 Bot 沒發言也能被辨識
+                 if bot_member:
+                     author_mapping[client.user.id] = (client.user.name, bot_member.display_name)
             channel_msgs = []
             
             async for msg in ch.history(after=target_time_ago, limit=None):
@@ -441,13 +448,16 @@ async def run_ai_summary(client, settings, secrets):
                     is_bot_msg = True
                 
                 # 決定顯示名稱 (用於對照表與訊息)
+                # 修正: 對照表應始終儲存真實暱稱，以便辨識
+                real_display_name = msg.author.display_name
+                
                 if is_bot_msg:
-                    display_name = bot_name
+                    transcript_display_name = bot_name
                 else:
-                    display_name = msg.author.display_name
+                    transcript_display_name = real_display_name
 
                 # 記錄作者資訊 (更新對照表)
-                author_mapping[msg.author.id] = (msg.author.name, display_name)
+                author_mapping[msg.author.id] = (msg.author.name, real_display_name)
 
                 # Mentions 處理
                 if msg.mentions:
@@ -498,9 +508,9 @@ async def run_ai_summary(client, settings, secrets):
                 
                 # 決定最終顯示名稱 (一般用戶需截斷，Bot 不需)
                 if is_bot_msg:
-                    author_name = display_name
+                    author_name = transcript_display_name
                 else:
-                    author_name = display_name[:settings["AUTHOR_NAME_LIMIT"]]
+                    author_name = transcript_display_name[:settings["AUTHOR_NAME_LIMIT"]]
 
                 if not content.strip() and not msg.attachments: continue
                 
@@ -521,7 +531,15 @@ async def run_ai_summary(client, settings, secrets):
         mapping_section = ""
         if author_mapping:
             name_limit = settings.get("AUTHOR_NAME_LIMIT", 4)
-            mapping_lines = [f"- 用戶: {name}, 暱稱: {disp[:name_limit]}" for uid, (name, disp) in author_mapping.items()]
+            mapping_lines = []
+            for uid, (name, disp) in author_mapping.items():
+                if uid == client.user.id:
+                    # 針對機器人: 顯示 名字(limit) + 暱稱(limit) + bot_name(代號)
+                    # 滿足需求: 機器人的名字前AUTHOR_NAME_LIMIT字、暱稱前AUTHOR_NAME_LIMIT字跟bot_name三個變數同時餵給這表格
+                    mapping_lines.append(f"- 用戶: {name[:name_limit]}, 暱稱: {disp[:name_limit]}, 代號: {settings.get('BOT_NAME', 'Bot')}")
+                else:
+                    mapping_lines.append(f"- 用戶: {name}, 暱稱: {disp[:name_limit]}")
+            
             mapping_section = "[參與對話的用戶與伺服器暱稱對照表]\n" + "\n".join(mapping_lines) + "\n\n"
 
         final_messages_str = mapping_section + "\n".join(collected_output)
