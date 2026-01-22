@@ -965,7 +965,7 @@ async def run_link_screenshot(client, settings, secrets):
                 continue
 
             print("   ⏳ 等待渲染...")
-            await asyncio.sleep(20) # 等待渲染 (12s -> 15s)
+            await asyncio.sleep(25) # 等待渲染 (12s -> 15s)
 
             filename = f"screenshot_temp_{idx}.png"
             await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "io", ipad_uuid, "screenshot", filename])
