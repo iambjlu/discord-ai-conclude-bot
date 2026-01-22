@@ -532,7 +532,7 @@ class TaggedResponseBot(discord.Client):
                         print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {iter_token_limit}, Context: {iter_limit_display}則)...")
                         try:
                             # print(prompt) # 減少 Log 雜訊
-                            response = self.genai_client.models.generate_content(
+                            response = await self.genai_client.aio.models.generate_content(
                                 model=model_name,
                                 contents=prompt,
                                 config=types.GenerateContentConfig(
