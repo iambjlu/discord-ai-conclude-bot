@@ -61,11 +61,12 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     settings = {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 1,          # AI總結
-        "DAILY_QUOTE_MODE": 1,         # 每日金句 (定時=午夜)
-        "DAILY_QUOTE_IMAGE_MODE": 1,   # 每日金句圖片生成 (0=關閉, 1/2=啟用)
-        "LINK_SCREENSHOT_MODE": 1,     # 連結截圖
-        "WEATHER_MODE": 1,             # 天氣預報 (0=停用, 1=定時, 2=強制)
+        "AI_SUMMARY_MODE": 2,            # AI總結
+        "DAILY_QUOTE_MODE": 2,           # 每日金句 (定時=午夜)
+        "DAILY_AI_SUMMARY_MODE": 2,      # 每日摘要彙整 (定時=午夜，與金句相同)
+        "DAILY_QUOTE_IMAGE_MODE": 2,     # 每日金句圖片生成 (0=關閉, 1/2=啟用)
+        "LINK_SCREENSHOT_MODE": 0,       # 連結截圖
+        "WEATHER_MODE": 2,               # 天氣預報 (0=停用, 1=定時, 2=強制)
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
@@ -120,15 +121,17 @@ def get_settings():
     if os.getenv('GITHUB_ACTIONS') == 'true':
         force_ai = os.getenv("FORCE_AI_SUMMARY", "false").lower() == "true"
         force_quote = os.getenv("FORCE_DAILY_QUOTE", "false").lower() == "true"
+        force_daily_ai_summary = os.getenv("FORCE_DAILY_AI_SUMMARY", "false").lower() == "true"
         force_link = os.getenv("FORCE_LINK_SCREENSHOT", "false").lower() == "true"
         force_weather = os.getenv("FORCE_WEATHER_FORECAST", "false").lower() == "true"
         
         # 只要有任何一個強制執行旗標被打開
-        if force_ai or force_quote or force_link or force_weather: # 偵測到手動強制執行
+        if force_ai or force_quote or force_daily_ai_summary or force_link or force_weather: # 偵測到手動強制執行
             print("🚀 偵測到手動強制執行，將覆寫排程設定：")
             # 1. 先全部關閉 (設為 0)
             settings["AI_SUMMARY_MODE"] = 0
             settings["DAILY_QUOTE_MODE"] = 0
+            settings["DAILY_AI_SUMMARY_MODE"] = 0
             settings["LINK_SCREENSHOT_MODE"] = 0
             settings["WEATHER_MODE"] = 0
             
@@ -139,6 +142,9 @@ def get_settings():
             if force_quote:
                 settings["DAILY_QUOTE_MODE"] = 2
                 print("   💪 強制執行 每日金句 (Mode 2)")
+            if force_daily_ai_summary:
+                settings["DAILY_AI_SUMMARY_MODE"] = 2
+                print("   💪 強制執行 每日摘要彙整 (Mode 2)")
             if force_link:
                 settings["LINK_SCREENSHOT_MODE"] = 2
                 print("   💪 強制執行 連結截圖 (Mode 2)")
@@ -150,6 +156,7 @@ def get_settings():
             print("🕒 GitHub Actions 排程模式：全部設為定時檢查 (Mode 1)")
             settings["AI_SUMMARY_MODE"] = 1
             settings["DAILY_QUOTE_MODE"] = 1
+            settings["DAILY_AI_SUMMARY_MODE"] = 1
             settings["LINK_SCREENSHOT_MODE"] = 1
             settings["WEATHER_MODE"] = 1
     
@@ -608,9 +615,10 @@ async def run_ai_summary(client, settings, secrets):
                                 f"{generated_text}\n"
                                 f"{footer_model_text}\n"
                                 f"> -# 🤓 AI 總結內容僅供參考，敬請核實。\n"
-                                f"{generate_choice_solver(settings)}"
                             )
                             await send_split_message(target_ch, report)
+                            # 第二則訊息：選擇困難解決器
+                            await send_split_message(target_ch, generate_choice_solver(settings))
                             print("   ✅ AI 總結已發送")
                         else:
                             print(f"   ❌ 所有模型嘗試皆失敗或無回應")
@@ -621,7 +629,9 @@ async def run_ai_summary(client, settings, secrets):
                                 "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                             }
                             error_msg = f"## ⚠️ Gemini 發生錯誤 (所有模型嘗試失敗)\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
-                            await send_split_message(target_ch, f"{error_msg}\n{generate_choice_solver(settings)}")
+                            await send_split_message(target_ch, error_msg)
+                            # 第二則訊息：選擇困難解決器
+                            await send_split_message(target_ch, generate_choice_solver(settings))
                     else:
                          print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")
                 else:
@@ -632,10 +642,11 @@ async def run_ai_summary(client, settings, secrets):
                     report = (
                         f"# ✨ {hours} 小時重點摘要出爐囉！\n"
                         f"** 🕘 {start_str} ~ {end_str}**\n\n"
-                        f"**(這段時間內沒有新訊息)**\n\n"
-                        f"{generate_choice_solver(settings)}"
+                        f"**(這段時間內沒有新訊息)**\n"
                     )
                     await target_ch.send(report)
+                    # 第二則訊息：選擇困難解決器
+                    await target_ch.send(generate_choice_solver(settings))
             else:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
@@ -819,6 +830,155 @@ async def run_daily_quote(client, settings, secrets):
              print("   ✅ 金句(純文字)已發送")
     else:
         print("   ⚠️ 沒找到熱門訊息或無目標頻道")
+    print()
+
+
+async def run_daily_ai_summary(client, settings, secrets):
+    """每日摘要：彙整昨天所有 AI 總結，再做一次整日總結"""
+    tz = settings["TZ"]
+    now = datetime.now(tz)
+    
+    # 使用獨立的排程/強制邏輯
+    force_run = os.getenv("FORCE_DAILY_AI_SUMMARY", "false").lower() == "true"
+    mode = settings.get("DAILY_AI_SUMMARY_MODE", 1)
+
+    # Mode 0: 停用
+    if mode == 0 and not force_run:
+        print("⏹️ 每日摘要功能已停用 (Mode 0)，跳過。")
+        return
+
+    # Mode 1: 定時 (午夜)
+    if mode == 1 and not force_run:
+        delay_tolerance = settings.get("SCHEDULE_DELAY_TOLERANCE", 1)
+        is_scheduled_time = (0 <= now.hour <= delay_tolerance)
+        if not is_scheduled_time:
+            print(f"⏹️ [Daily AI Summary] 現在 {now.strftime('%H:%M')} 非執行時段，跳過。")
+            return
+
+    print(">>> [Daily AI Summary] 開始執行：每日 AI 摘要彙整")
+    
+    # 計算昨天的日期字串 (用於比對 🕘 後的日期)
+    yesterday = (now - timedelta(days=settings.get("DAYS_AGO", 1))).date()
+    yesterday_str = yesterday.strftime('%Y年%m月%d日')
+    print(f"   目標日期: {yesterday_str}")
+    
+    # 收集過去 30 小時內的訊息
+    target_time_ago = now - timedelta(hours=30)
+    collected_summaries = []
+    
+    try:
+        target_ch = client.get_channel(secrets["TARGET_CHANNEL_ID"])
+        if not target_ch:
+            print("   ⚠️ 找不到目標頻道，跳過")
+            return
+        
+        print(f"   📣 目標頻道: #{target_ch.name} ({target_ch.id})")
+        print(f"   掃描過去 30 小時內的訊息...")
+        
+        async for msg in target_ch.history(after=target_time_ago, limit=None):
+            content = msg.content
+            
+            # 條件 1: 以「✨」開頭
+            if not content.startswith("✨") and not content.startswith("# ✨"):
+                continue
+            
+            # 條件 2: 包含「🕘」且後面的日期符合昨天
+            if "🕘" not in content:
+                continue
+            
+            # 嘗試從「🕘」後面提取日期
+            # 格式範例: "** 🕘 2026年01月21日 星期二 20:00 ~ 00:00**"
+            clock_idx = content.find("🕘")
+            if clock_idx == -1:
+                continue
+            
+            # 取 🕘 後面的一段文字來檢查日期
+            date_section = content[clock_idx:clock_idx+50]  # 取足夠長的區間
+            
+            # 檢查昨天的日期是否在這段文字中
+            if yesterday_str not in date_section:
+                continue
+            
+            # 符合所有條件，收集此訊息
+            collected_summaries.append(content)
+            print(f"   ✅ 找到符合條件的摘要 (訊息時間: {msg.created_at.astimezone(tz).strftime('%H:%M')})")
+        
+        print(f"   共收集到 {len(collected_summaries)} 則昨日摘要")
+        
+        if not collected_summaries:
+            print("   ⚠️ 沒有找到符合條件的摘要，跳過整日總結")
+            return
+        
+        # 準備餵給 AI 的內容
+        combined_text = "\n\n---\n\n".join(collected_summaries)
+        
+        gemini_key = secrets["GEMINI_API_KEY"]
+        if not gemini_key:
+            print("   ⚠️ 缺少 Gemini Key，跳過 AI 摘要")
+            return
+        
+        print("   🤖 呼叫 Gemini 進行整日總結...")
+        
+        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-3-flash-preview"])
+        if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
+            param_model_list = [settings["GEMINI_MODEL"]]
+        
+        generated_text = None
+        used_model_name = None
+        
+        ai_client = genai.Client(api_key=gemini_key)
+        prompt = f"""請用繁體中文彙整以下多則「時段重點摘要」，產出一份完整的「{yesterday_str} 每日總結」。
+依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名(以暱稱為主)，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。必須認真思考。
+
+## [頻道名]
+(請條列四五個重點但只能一層)\n
+**提及的規劃**\n(請整合所有提到的時間規劃，不要省略)\n
+**結論**\n(總結內容)\n
+
+## 整日總結
+(總結內容)
+
+以下是需要彙整的各時段摘要：
+
+{combined_text}"""
+
+        for model_name in param_model_list:
+            print(f"   🔄 嘗試模型: {model_name}...")
+            try:
+                response = ai_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
+                )
+                if response.text:
+                    generated_text = response.text
+                    used_model_name = model_name
+                    print(f"   ✅ 模型 {model_name} 成功回應")
+                    break
+            except Exception as e:
+                print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                continue
+        
+        if generated_text and used_model_name:
+            if "gemini" in used_model_name.lower():
+                footer_model_text = f"> -# 🤖 以上重點摘要由業界領先的 Google Gemini AI 大型語言模型「{used_model_name}」驅動。"
+            else:
+                footer_model_text = f"> -# 🤖 以上重點摘要由 Google Gemma 開放權重模型「{used_model_name}」驅動。"
+            
+            report = (
+                f"# 📰 {yesterday_str} 每日總結\n"
+                f"** 🗓️ 彙整自 {len(collected_summaries)} 則時段摘要**\n\n"
+                f"{generated_text}\n"
+                f"\n{footer_model_text}\n"
+                f"> -# 🤓 AI 總結內容僅供參考，敬請核實。\n"
+            )
+            await send_split_message(target_ch, report)
+            print("   ✅ 每日摘要已發送")
+        else:
+            print("   ❌ 所有模型嘗試皆失敗")
+    
+    except Exception as e:
+        print(f"❌ Daily AI Summary 執行錯誤: {e}")
     print()
 
 
@@ -1264,13 +1424,16 @@ class MyClient(discord.Client):
         # 1. 執行 AI 總結
         await run_ai_summary(self, self.settings, self.secrets)
 
-        # 2. 執行 每日金句
+        # 2. 執行 每日摘要彙整 (放在金句之後)
+        await run_daily_ai_summary(self, self.settings, self.secrets)
+
+        # 3. 執行 每日金句
         await run_daily_quote(self, self.settings, self.secrets)
 
-        # 3. 執行 天氣預報
+        # 4. 執行 天氣預報
         await run_weather_forecast(self, self.settings, self.secrets)
 
-        # 4. 執行 連結截圖
+        # 5. 執行 連結截圖
         await run_link_screenshot(self, self.settings, self.secrets)
 
         
@@ -1287,6 +1450,7 @@ if __name__ == "__main__":
     print(f"GitHub Actions 環境: {os.getenv('GITHUB_ACTIONS') == 'true'}")
     print(f"AI Summary Mode: {settings_data['AI_SUMMARY_MODE']} (Force: {os.getenv('FORCE_AI_SUMMARY', 'false')})")
     print(f"Daily Quote Mode: {settings_data['DAILY_QUOTE_MODE']} (Force: {os.getenv('FORCE_DAILY_QUOTE', 'false')})")
+    print(f"Daily AI Summary Mode: {settings_data['DAILY_AI_SUMMARY_MODE']} (Force: {os.getenv('FORCE_DAILY_AI_SUMMARY', 'false')})")
     print(f"Link Screenshot Mode: {settings_data['LINK_SCREENSHOT_MODE']} (Force: {os.getenv('FORCE_LINK_SCREENSHOT', 'false')})")
     print(f"Weather Forecast Mode: {settings_data['WEATHER_MODE']} (Force: {os.getenv('FORCE_WEATHER_FORECAST', 'false')})")
     print("========================\n")
