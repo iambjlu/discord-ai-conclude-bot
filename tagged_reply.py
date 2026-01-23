@@ -306,7 +306,10 @@ class TaggedResponseBot(discord.Client):
                             footer = (
                                 f"\n"
                                 f"{footer_model_text}\n"
+                                f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)\n"
                                 f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
+                                f"> -# 📖 多模態模式回應內容不會參考近期聊天記錄、附件內容、網路資料。\n"
+                                f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
                             )
                             await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
                             print("   ✅ 圖片辨識完成並回覆")
@@ -670,6 +673,7 @@ class TaggedResponseBot(discord.Client):
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
                             f"{fallback_warning}"
                             f"{footer_model_text}\n"
+                            f"> -# 🖼️ 使用`/辨識圖片`以存取多模態模型對圖片進行辨識\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
