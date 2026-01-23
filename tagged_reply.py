@@ -276,7 +276,7 @@ class TaggedResponseBot(discord.Client):
                             if is_smarter_mode:
                                 base_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
                             
-                            history_limit = max(base_limit // 3, 3) # 至少抓 3 則
+                            history_limit = max(base_limit // 4, 3) # 至少抓 3 則
                             print(f"   📜 抓取歷史訊息作為背景參考 (Limit: {history_limit})...")
                             
                             hist_lines = []
@@ -299,7 +299,7 @@ class TaggedResponseBot(discord.Client):
                                 # history 是最新的在前，我們反轉順序變成時間順序
                                 hist_lines.reverse()
                                 context_str = "\n".join(hist_lines)
-                                prompt_text = f"以下是近期的對話歷史(僅供參考):\n{context_str}\n\n使用者針對圖片的指令/詢問:\n{prompt_text}"
+                                prompt_text = f"以下是近期的對話歷史(僅供參考，不要分心):\n{context_str}\n\n使用者針對圖片的指令/詢問:\n{prompt_text}"
                                 print(f"   ✅ 已附加 {len(hist_lines)} 則歷史訊息至 Prompt")
                         
                         except Exception as h_e:
