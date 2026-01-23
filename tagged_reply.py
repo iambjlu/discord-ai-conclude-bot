@@ -225,6 +225,93 @@ class TaggedResponseBot(discord.Client):
             if is_smarter_mode:
                 print(f"🧠 偵測到 Smarter Mode 關鍵字: {smarter_keywords}")
 
+            # ---------------------------------------------------------
+            # 新增: /辨識圖片 指令處理
+            # ---------------------------------------------------------
+            if "/辨識圖片" in content_clean:
+                print(f"📸 收到圖片辨識指令: {message.author} 在 #{message.channel}")
+                
+                async with message.channel.typing():
+                    try:
+                        target_image_url = None
+                        
+                        # Case 1: 檢查當前訊息是否有附件
+                        if message.attachments:
+                            # 找第一個是圖片的附件
+                            for att in message.attachments:
+                                if att.content_type and "image" in att.content_type:
+                                    target_image_url = att.url
+                                    break
+                        
+                        # Case 2: 如果沒有，檢查是否有回覆，並從回覆中找附件
+                        if not target_image_url and message.reference and message.reference.message_id:
+                            try:
+                                ref_msg_obj = await message.channel.fetch_message(message.reference.message_id)
+                                if ref_msg_obj.attachments:
+                                    for att in ref_msg_obj.attachments:
+                                        if att.content_type and "image" in att.content_type:
+                                            target_image_url = att.url
+                                            break
+                            except Exception as e:
+                                print(f"   ⚠️ 無法讀取回覆的圖片訊息: {e}")
+
+                        # 若還是沒圖，報錯並結束
+                        if not target_image_url:
+                            await message.reply("❓ 找不到圖片。請直接上傳圖片並附帶指令，或是回覆一張有圖片的訊息。")
+                            return
+
+                        print(f"   🖼️ 目標圖片網址: {target_image_url}")
+
+                        # 準備 Prompt (移除指令關鍵字)
+                        prompt_text = content_clean.replace("/辨識圖片", "").replace(smarter_keywords, "").strip()
+                        if not prompt_text:
+                            prompt_text = "請詳細描述這張圖片的內容。" # 預設 Prompt
+
+                        # 準備模型
+                        # 如果有 /聰明模型 -> 使用 Smarter List 第一個
+                        # 否則 -> 使用 Normal List 第一個
+                        if is_smarter_mode:
+                            model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
+                        else:
+                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemma-3-27b-it"])[0]
+
+                        print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
+                        
+                        # 呼叫 GenAI
+                        # image_reg.py 參考用法: types.Part.from_uri(file_uri=url, mime_type=...)
+                        # 簡單判斷 mime (雖 Discord url 通常有 .jpg/.png，但 API 其實蠻寬容，用 image/jpeg 或是 auto detect 通常也可)
+                        mime_type = "image/jpeg"
+                        lower_url = target_image_url.lower()
+                        if ".png" in lower_url: mime_type = "image/png"
+                        elif ".webp" in lower_url: mime_type = "image/webp"
+
+                        image_part = types.Part.from_uri(file_uri=target_image_url, mime_type=mime_type)
+                        
+                        contents = [prompt_text, image_part]
+                        
+                        response = await self.genai_client.aio.models.generate_content(
+                            model=model_name,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                temperature=0.2 # 圖片辨識稍微精確點
+                            )
+                        )
+                        
+                        if response.text:
+                            footer = (
+                                f"\n\n> -# 🤖 圖片辨識由「{model_name}」驅動"
+                            )
+                            await message.reply(response.text + footer)
+                            print("   ✅ 圖片辨識完成並回覆")
+                        else:
+                            await message.reply("🤖 模型看完了圖片，但沒有回傳任何文字描述。")
+
+                    except Exception as e:
+                        print(f"❌ 圖片辨識失敗: {e}")
+                        await message.reply(f"❌ 圖片辨識發生錯誤: {e}")
+                
+                return # 結束，不繼續執行下方的聊天邏輯
+
             print(f"📨 收到觸發 (Mention/Reply): {message.author} 在 #{message.channel}")
             
             # 顯示正在輸入...
