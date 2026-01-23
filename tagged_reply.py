@@ -298,10 +298,17 @@ class TaggedResponseBot(discord.Client):
                         )
                         
                         if response.text:
+                            if "gemini" in model_name.lower():
+                                footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemini AI 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
+                            else:
+                                footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemma 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
+
                             footer = (
-                                f"\n\n> -# 🤖 圖片辨識由「{model_name}」驅動"
+                                f"\n"
+                                f"{footer_model_text}\n"
+                                f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             )
-                            await message.reply(response.text + footer)
+                            await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
                             print("   ✅ 圖片辨識完成並回覆")
                         else:
                             await message.reply("🤖 模型看完了圖片，但沒有回傳任何文字描述。")
