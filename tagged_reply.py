@@ -267,6 +267,44 @@ class TaggedResponseBot(discord.Client):
                         if not prompt_text:
                             prompt_text = "請詳細描述這張圖片的內容。" # 預設 Prompt
 
+                        # ------------------------------------------------------------------
+                        # 加強: 抓取少量歷史訊息作為參考 (1/3 限額)
+                        # ------------------------------------------------------------------
+                        try:
+                            # 決定限額
+                            base_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
+                            if is_smarter_mode:
+                                base_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
+                            
+                            history_limit = max(base_limit // 3, 3) # 至少抓 3 則
+                            print(f"   📜 抓取歷史訊息作為背景參考 (Limit: {history_limit})...")
+                            
+                            hist_lines = []
+                            time_fmt = "%H:%M"
+                            
+                            async for h_msg in message.channel.history(limit=history_limit):
+                                if h_msg.id == message.id: continue # 跳過指令本身
+                                if not h_msg.content.strip(): continue
+
+                                h_author = h_msg.author.display_name[:self.settings.get("AUTHOR_NAME_LIMIT", 4)]
+                                h_time = h_msg.created_at.astimezone(self.settings.get("TZ", timezone(timedelta(hours=8)))).strftime(time_fmt)
+                                h_content = h_msg.content.replace(self.ignore_after_token, "").strip()
+                                
+                                # 簡單截斷
+                                if len(h_content) > 100: h_content = h_content[:100] + "..."
+                                
+                                hist_lines.append(f"{h_author}@{h_time}: {h_content}")
+                            
+                            if hist_lines:
+                                # history 是最新的在前，我們反轉順序變成時間順序
+                                hist_lines.reverse()
+                                context_str = "\n".join(hist_lines)
+                                prompt_text = f"以下是近期的對話歷史(僅供參考):\n{context_str}\n\n使用者針對圖片的指令/詢問:\n{prompt_text}"
+                                print(f"   ✅ 已附加 {len(hist_lines)} 則歷史訊息至 Prompt")
+                        
+                        except Exception as h_e:
+                            print(f"   ⚠️ 抓取歷史失敗 (不影響圖片辨識): {h_e}")
+
                         # 準備模型
                         # 如果有 /聰明模型 -> 使用 Smarter List 第一個
                         # 否則 -> 使用 Normal List 第一個
@@ -306,9 +344,9 @@ class TaggedResponseBot(discord.Client):
                             footer = (
                                 f"\n"
                                 f"{footer_model_text}\n"
-                                f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)\n"
+                                f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)，以及少量對話歷史({history_limit}則)\n"
                                 f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
-                                f"> -# 📖 多模態模式回應內容不會參考近期聊天記錄、附件內容、網路資料。\n"
+                                f"> -# 📖 多模態模式回應內容不會參考網路資料。\n"
                                 f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
                             )
                             await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
@@ -673,7 +711,7 @@ class TaggedResponseBot(discord.Client):
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
                             f"{fallback_warning}"
                             f"{footer_model_text}\n"
-                            f"> -# 🖼️ 使用`/辨識圖片`以存取多模態模型對圖片進行辨識\n"
+                            f"> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
