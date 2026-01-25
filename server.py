@@ -378,7 +378,7 @@ def get_discord_status():
                     inc_name = inc.get("name", "Unknown Incident")
                     inc_status = inc.get("status", "unknown").replace("_", " ").title()
                     inc_url = inc.get("shortlink", "")
-                    line = f"- {inc_name} ({inc_status})\n"
+                    line = f"- {inc_name} ({inc_status}) "
                     if inc_url:
                         line += f"[更多內容···]({inc_url})"
                     result_lines.append(line)
@@ -417,7 +417,7 @@ def generate_choice_solver(settings=None):
         f"{coin_str}\n\n"
         f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
         f"{generate_minesweeper(rows, cols, mines)}\n\n"
-        f"## 📡 Discord 服務狀態:\n{discord_status}\n"
+        f"## [📡 Discord 服務狀態](https://discordstatus.com/)\n{discord_status}\n"
     )
 
 # ==========================================
