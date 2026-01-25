@@ -331,6 +331,65 @@ def generate_minesweeper(rows=6, cols=6, mines=3):
         
     return result_str.strip()
 
+def get_discord_status():
+    """Helper: 取得 Discord 服務狀態 (API)"""
+    url = "https://discordstatus.com/api/v2/summary.json"
+    try:
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            status = data.get("status", {})
+            status_text = status.get("description", "Unknown")
+            indicator = status.get("status", "none") # Note: 'indicator' is the field name for color mapping usually, but sticking to previous logic or fixing it. 
+            # Wait, API 'status' object has 'indicator' and 'description'.
+            # data['status']['indicator'] can be 'none', 'minor', 'major', 'critical'.
+            indicator = status.get("indicator", "none")
+
+            # 簡單的圖示對應
+            icon = "🟢"
+            if indicator == "minor": icon = "🟠"
+            elif indicator == "major": icon = "🔴"
+            elif indicator == "critical": icon = "💀"
+            
+            result_lines = [f"{icon} **{status_text}**"]
+
+            # 檢查異常組件 (Components)
+            components = data.get("components", [])
+            abnormal_components = []
+            for comp in components:
+                # 只顯示非 operational 的組件，且排除 group (通常 group 狀態會由子組件反映，或者 group 本身也有 status)
+                # 這裡簡單判斷：只要 status 不是 operational 且不是 group (或是 group 但我們想顯示)
+                # 觀察 API: group: true 的項目也有 status。
+                # 為了避免太長，只列出非 operational 的。
+                if comp.get("status") != "operational":
+                    comp_name = comp.get("name", "Unknown")
+                    comp_status = comp.get("status", "unknown").replace("_", " ").title()
+                    abnormal_components.append(f"- {comp_name}: {comp_status}")
+            
+            if abnormal_components:
+                result_lines.append("\n**⚠️ 異常服務:**")
+                result_lines.extend(abnormal_components)
+
+            # 檢查事件 (Incidents)
+            incidents = data.get("incidents", [])
+            if incidents:
+                result_lines.append("\n**📢 正在發生的事件:**")
+                for inc in incidents:
+                    inc_name = inc.get("name", "Unknown Incident")
+                    inc_status = inc.get("status", "unknown").replace("_", " ").title()
+                    inc_url = inc.get("shortlink", "")
+                    line = f"- {inc_name} ({inc_status})\n"
+                    if inc_url:
+                        line += f"[更多內容···]({inc_url})"
+                    result_lines.append(line)
+            
+            return "\n".join(result_lines)
+        else:
+            return f"❓ 無法取得狀態 (HTTP {resp.status_code})"
+    except Exception as e:
+        print(f"Discord Status Error: {e}")
+        return "❓ 無法連線至 Status API"
+
 def generate_choice_solver(settings=None):
     """生成選擇困難解決器 (骰子與硬幣)"""
     # 預設值 (如果沒有傳入 settings)
@@ -347,6 +406,9 @@ def generate_choice_solver(settings=None):
     coin_outcomes = ["⬆️" if random.choice([True, False]) else "⬇️" for _ in range(10)]
     coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
     
+    # Discord Status
+    discord_status = get_discord_status()
+
     return (
         "## 選擇困難解決器\n"
         "🎲 丟個骰子吧\n\n"
@@ -354,7 +416,8 @@ def generate_choice_solver(settings=None):
         "🪙 丟個硬幣吧\n\n"
         f"{coin_str}\n\n"
         f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
-        f"{generate_minesweeper(rows, cols, mines)}\n"
+        f"{generate_minesweeper(rows, cols, mines)}\n\n"
+        f"## 📡 Discord 服務狀態:\n{discord_status}\n"
     )
 
 # ==========================================
