@@ -417,7 +417,7 @@ def generate_choice_solver(settings=None):
         f"{coin_str}\n\n"
         f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
         f"{generate_minesweeper(rows, cols, mines)}\n\n"
-        f"## [📡 Discord 服務狀態](https://discordstatus.com/)\n{discord_status}\n"
+        f"## 📡 [Discord 服務狀態](https://discordstatus.com)\n{discord_status}\n"
     )
 
 # ==========================================

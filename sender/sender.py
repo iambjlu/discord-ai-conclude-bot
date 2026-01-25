@@ -15,7 +15,7 @@ load_dotenv()
 MESSAGE_TO_SEND = """"""
 
 # 👇 指定頻道 ID 或 討論串 ID (填寫數字即可，留空則使用 .env 設定)
-SPECIFIED_CHANNEL_ID = 1463956373619347642
+SPECIFIED_CHANNEL_ID = 1461933929064824964
 # SPECIFIED_CHANNEL_ID = 1234567890 
 
 # ==============================
