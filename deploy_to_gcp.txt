@@ -1,0 +1,17 @@
+git clone https://github.com/iambjlu/discord-ai-conclude-bot
+
+# 此時填入.env檔案
+
+cd ~/discord-ai-conclude-bot
+gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com
+gcloud artifacts repositories create discord-ai-conclude-bot-repo \
+    --repository-format=docker \
+    --location=asia-east1 \
+    --description="Discord Bot Docker Repository"
+export PROJECT_ID=$(gcloud config get-value project)
+gcloud builds submit --tag asia-east1-docker.pkg.dev/$PROJECT_ID/discord-ai-conclude-bot-repo/discord-ai-conclude-bot:latest .
+gcloud run jobs create discord-ai-bot-job \
+    --image asia-east1-docker.pkg.dev/$PROJECT_ID/discord-ai-conclude-bot-repo/discord-ai-conclude-bot:latest \
+    --region asia-east1 \
+    --task-timeout 10m
+
