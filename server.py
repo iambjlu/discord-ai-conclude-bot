@@ -30,10 +30,15 @@ def check_requirements():
         print("🔄 正在嘗試自動安裝...")
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
+            if 'playwright' in missing:
+                print("🌐 偵測到剛安裝 Playwright，正在下載瀏覽器二進位檔...")
+                subprocess.check_call([sys.executable, "-m", "playwright", "install"])
             print("✅ 安裝完成！繼續執行程式...")
         except subprocess.CalledProcessError:
             print("❌ 自動安裝失敗。請手動執行以下指令安裝：")
             print(f"pip install {' '.join(missing)}")
+            if 'playwright' in missing:
+                print("playwright install")
             sys.exit(1)
 
 # 執行依賴檢查 (必須在 import discord 前執行)
@@ -116,6 +121,15 @@ def get_settings():
 **結論**\n(總結內容)\n
 """,
     }
+
+    # Cloud Run Job 環境強制覆寫
+    if os.getenv('CLOUD_RUN_JOB'):
+        print("☁️ 偵測到 Cloud Run Job 環境，套用專屬設定")
+        settings["AI_SUMMARY_MODE"] = 1
+        settings["DAILY_QUOTE_MODE"] = 1
+        settings["DAILY_AI_SUMMARY_MODE"] = 1
+        settings["LINK_SCREENSHOT_MODE"] = 0
+        settings["WEATHER_MODE"] = 1
 
     # GitHub Actions 環境強制覆寫 (避免本地測試改壞 Config 影響線上)
     if os.getenv('GITHUB_ACTIONS') == 'true':
