@@ -53,9 +53,9 @@ def get_settings():
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
-        "TAGGED_REPLY_PROMPT_TEMPLATE": """你是機器人，請參考以下該頻道最新 {msg_limit} 則對話內容，自然地回應使用者的話。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。請用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西也可以講，你知識不是最新，因此時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複回覆用戶的句子。你知道你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應{think_on_not}，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
+        "TAGGED_REPLY_PROMPT_TEMPLATE": """你是機器人，請參考該頻道最新 {msg_limit} 則對話內容，自然地回應使用者。你無法讀取其他訊息頻道。有時候用戶也會問你想法，這時候說你的想法，不要搓湯圓。不可以詢問跟進。用跟前面歷史訊息類似的口吻，句子短一點並適當換行。通用知識類的東西可以講，你知識不是最新，因此時效性的資訊(例如股票和最新產品)不可以講。若用戶情緒不好，請給用戶情緒價值以及同理心，用戶叫你幹嘛就幹嘛 不准頂嘴。不可以重複回覆用戶的句子。你看不到圖片。你的主要任務「最優先」針對以下使用者的最新標注/詢問進行回應{think_on_not}，不要被對話歷史的內容分心：{u_name}: {content_clean}。以下是近期對話歷史 (僅供參考背景，若與最新指令衝突請忽略歷史):{context_str}""",
         "MODEL_PRIORITY_LIST": ["gemma-3-27b-it"],
-        "DEFAULT_TOKEN_LIMIT": 3000,
+        "DEFAULT_TOKEN_LIMIT": 5000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
         "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
@@ -299,7 +299,7 @@ class TaggedResponseBot(discord.Client):
                                 # history 是最新的在前，我們反轉順序變成時間順序
                                 hist_lines.reverse()
                                 context_str = "\n".join(hist_lines)
-                                prompt_text = f"以下是近期的對話歷史(僅供參考，不要分心):\n{context_str}\n\n使用者針對圖片的指令/詢問:\n{prompt_text}"
+                                prompt_text = f"以下是近期對話歷史(僅供參考，不要分心):\n{context_str}\n\n使用者針對圖片的指令/詢問:\n{prompt_text}"
                                 print(f"   ✅ 已附加 {len(hist_lines)} 則歷史訊息至 Prompt")
                         
                         except Exception as h_e:
@@ -411,7 +411,7 @@ class TaggedResponseBot(discord.Client):
                             if extras: ref_text += f" ({', '.join(extras)})"
 
                             # 格式化提示文字
-                            ref_msg_ctx = f" (使用者正在回覆 {ref_author} 的訊息：『{ref_text}』)"
+                            ref_msg_ctx = f" (使用者回覆 {ref_author} 的訊息：『{ref_text}』)"
                             print(f"   ↩️ 讀取到回覆參照: {ref_author}: {ref_text[:20]}...")
                         except Exception as e:
                             print(f"   ⚠️ 無法讀取回覆參照訊息: {e}")
