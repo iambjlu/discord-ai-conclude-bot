@@ -93,7 +93,7 @@ def get_settings():
         # --- 抓取範圍 ---
         "DAYS_AGO": 1,                   # 每日金句抓取範圍  (X天前) 0為今天, 1為昨天...
         "RECENT_MSG_HOURS": 4,           # AI總結抓取範圍   (X小時內 需保留排程不準時的緩衝)
-        "LINK_SCREENSHOT_HOURS": 3,      # 連結截圖抓取範圍  (X小時內 需保留排程不準時的緩衝)
+        "LINK_SCREENSHOT_HOURS": 2,      # 連結截圖抓取範圍  (X小時內 需保留排程不準時的緩衝)
 
         # --- 踩地雷 ---
         "MINESWEEPER_ROWS": 6,           # 
