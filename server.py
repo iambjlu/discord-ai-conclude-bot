@@ -66,12 +66,12 @@ def get_settings():
     """回傳使用者偏好的設定參數"""
     settings = {
         # --- 功能開關 (0=停用, 1=定時啟用(預設), 2=一律啟用) ---
-        "AI_SUMMARY_MODE": 2,            # AI總結
-        "DAILY_QUOTE_MODE": 2,           # 每日金句 (定時=午夜)
-        "DAILY_AI_SUMMARY_MODE": 2,      # 每日摘要彙整 (定時=午夜，與金句相同)
-        "DAILY_QUOTE_IMAGE_MODE": 2,     # 每日金句圖片生成 (0=關閉, 1/2=啟用)
+        "AI_SUMMARY_MODE": 1,            # AI總結
+        "DAILY_QUOTE_MODE": 1,           # 每日金句 (定時=午夜)
+        "DAILY_AI_SUMMARY_MODE": 1,      # 每日摘要彙整 (定時=午夜，與金句相同)
+        "DAILY_QUOTE_IMAGE_MODE": 1,     # 每日金句圖片生成 (0=關閉, 1/2=啟用)
         "LINK_SCREENSHOT_MODE": 0,       # 連結截圖
-        "WEATHER_MODE": 2,               # 天氣預報 (0=停用, 1=定時, 2=強制)
+        "WEATHER_MODE": 1,               # 天氣預報 (0=停用, 1=定時, 2=強制)
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
@@ -92,7 +92,7 @@ def get_settings():
         
         # --- 抓取範圍 ---
         "DAYS_AGO": 1,                   # 每日金句抓取範圍  (X天前) 0為今天, 1為昨天...
-        "RECENT_MSG_HOURS": 5,           # AI總結抓取範圍   (X小時內 需保留排程不準時的緩衝)
+        "RECENT_MSG_HOURS": 4,           # AI總結抓取範圍   (X小時內 需保留排程不準時的緩衝)
         "LINK_SCREENSHOT_HOURS": 3,      # 連結截圖抓取範圍  (X小時內 需保留排程不準時的緩衝)
 
         # --- 踩地雷 ---
