@@ -641,7 +641,7 @@ async def run_ai_summary(client, settings, secrets):
             target_ch = client.get_channel(target_ch_id)
             if target_ch:
                 print(f"   📣 準備發送至頻道: #{target_ch.name} ({target_ch.id})")
-                if final_messages_str:
+                if collected_output:
                     if gemini_key:
                         print("   🤖 呼叫 Gemini 中...")
                         
