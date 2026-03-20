@@ -71,13 +71,6 @@ echo "== 系統資訊 ============================"
 uname -a
 echo ""
 
-echo "== 作業系統版本 ========================"
-sw_vers
-echo ""
-
-echo "== CPU / 記憶體資訊 ====================="
-sysctl -n machdep.cpu.brand_string hw.memsize
-echo ""
 
 echo "== 磁碟資訊 ============================"
 diskutil list physical
