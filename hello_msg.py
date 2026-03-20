@@ -66,7 +66,7 @@ echo "== 系統資訊 ============================"
 uname -a
 echo ""
 
-echo "== 網路介面 (實體網卡) ====================="
+echo "== 網路介面 ====================="
 for dev in $(networksetup -listallhardwareports | grep "Device:" | awk '{print $2}'); do
     ip=$(ipconfig getifaddr $dev 2>/dev/null)
     if [ ! -z "$ip" ]; then
