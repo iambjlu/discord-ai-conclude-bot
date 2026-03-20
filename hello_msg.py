@@ -51,7 +51,7 @@ uptime
 echo ""
 
 echo "== 網路介面 ============================"
-ip a | grep -E "^[0-9]+:|inet "
+ip -o -4 addr show up | awk '$2 ~ /^(eth|en|wlan|wl)/ {print $2 ": " $4}'
 echo ""
 
 echo "== 主機名稱 ============================"
