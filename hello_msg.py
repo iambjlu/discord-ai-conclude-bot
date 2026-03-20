@@ -26,7 +26,7 @@ uname -a
 echo ""
 
 echo "== CPU 資訊 ============================"
-lscpu | egrep 'Architecture|CPU\(s\)|Thread|Core|Socket|Model name'
+lscpu | egrep 'Architecture|CPU\\(s\\)|Thread|Core|Socket|Model name'
 echo ""
 
 echo "== 記憶體資訊 =========================="
