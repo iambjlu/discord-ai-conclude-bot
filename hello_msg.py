@@ -51,8 +51,8 @@ cat /proc/cpuinfo | grep -E "model name|cpu MHz|cache size" | uniq
 echo ""
 
 if curl -s -f -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/id" >/dev/null 2>&1; then
-    echo "== GCP 執行個體 ========================"
-    FIELDS=("cpu-platform" "hostname" "image" "network-interfaces/" "scheduling/preemptible" "preempted" "service-accounts/" "machine-type" "tags" "zone" "disks/" "description")
+    echo "== Google Cloud 執行個體 ========================"
+    FIELDS=("cpu-platform" "hostname" "image" "network-interfaces/0/ip" "scheduling/preemptible" "preempted" "service-accounts/" "machine-type" "tags" "zone" "disks/0/type" "description")
     for item in "${FIELDS[@]}"; do
         val=$(curl -s -f -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/$item" 2>/dev/null)
         if [ ! -z "$val" ]; then
@@ -65,7 +65,7 @@ if curl -s -f -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeM
 elif curl -s -f -m 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" >/dev/null 2>&1; then
     echo "== AWS 執行個體 ========================"
     token=$(curl -s -f -m 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null)
-    FIELDS=("instance-id" "instance-type" "instance-life-cycle" "placement/availability-zone" "local-ipv4" "public-ipv4" "ami-id" "local-hostname" "iam/info")
+    FIELDS=("instance-id" "instance-type" "instance-life-cycle" "placement/availability-zone" "local-ipv4" "ami-id" "local-hostname" "iam/info")
     for item in "${FIELDS[@]}"; do
         val=$(curl -s -f -m 1 -H "X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/$item" 2>/dev/null)
         if [ ! -z "$val" ]; then
@@ -77,7 +77,7 @@ elif curl -s -f -m 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-
     echo ""
 elif curl -s -f -m 1 -H "Metadata: true" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text" >/dev/null 2>&1; then
     echo "== Azure 執行個體 ========================"
-    FIELDS=("compute/name" "compute/location" "compute/priority" "compute/vmSize" "compute/publisher" "compute/offer" "compute/sku" "compute/vmId" "compute/tags" "network/interface/0/ipv4/ipAddress/0/privateIpAddress" "network/interface/0/ipv4/ipAddress/0/publicIpAddress")
+    FIELDS=("compute/name" "compute/location" "compute/priority" "compute/vmSize" "compute/publisher" "compute/offer" "compute/sku" "compute/vmId" "compute/tags" "compute/storageProfile/osDisk/managedDisk/storageAccountType" "network/interface/0/ipv4/ipAddress/0/privateIpAddress")
     for item in "${FIELDS[@]}"; do
         val=$(curl -s -f -m 1 -H "Metadata: true" "http://169.254.169.254/metadata/instance/$item?api-version=2021-02-01&format=text" 2>/dev/null)
         if [ ! -z "$val" ]; then
