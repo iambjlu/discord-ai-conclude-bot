@@ -151,7 +151,7 @@ class HelloSender(discord.Client):
             for i in range(0, len(sys_info), chunk_size):
                 chunk = sys_info[i:i+chunk_size]
                 if i == 0:
-                    text_to_send = f"## 嗨 我上線囉！\n```text\n{chunk}\n```"
+                    text_to_send = f"## 嗨 我上線囉！\n系統資訊：```text\n{chunk}\n```"
                 else:
                     text_to_send = f"```text\n{chunk}\n```"
                 await channel.send(text_to_send)

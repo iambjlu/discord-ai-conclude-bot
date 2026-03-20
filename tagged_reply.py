@@ -114,6 +114,17 @@ class TaggedResponseBot(discord.Client):
         print(f'🤖 模型優先順序: {self.model_priority_list}')
         print('-------------------------------------------')
 
+        # === 啟動系統資訊推播 ===
+        if not hasattr(self, 'hello_run'):
+            self.hello_run = True
+            try:
+                import sys
+                import subprocess
+                print("🚀 正在啟動系統資訊推播腳本 (hello_msg.py)...")
+                subprocess.Popen([sys.executable, "hello_msg.py"])
+            except Exception as e:
+                print(f"⚠️ 啟動系統資訊推播腳本失敗: {e}")
+
         # 🚀 啟動檢查：檢查是否是從 OTA 更新重啟回來的
         if not hasattr(self, 'startup_checked'):
             self.startup_checked = True
