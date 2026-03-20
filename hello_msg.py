@@ -78,39 +78,25 @@ echo ""
         return run_shell_script(script_content, executable='/bin/bash')
         
     elif os_system == "Windows":
-        script_content = """
-echo == 系統資訊 ============================
-ver
-echo.
-
-echo == CPU 資訊 ============================
-wmic cpu get Name, NumberOfCores, NumberOfLogicalProcessors
-echo.
-
-echo == 記憶體資訊 ==========================
-wmic OS get TotalVisibleMemorySize, FreePhysicalMemory
-echo.
-
-echo == 磁碟資訊 ============================
-wmic logicaldisk get Caption, FileSystem, FreeSpace, Size
-echo.
-
-echo == GPU / 顯示卡 ========================
-wmic path win32_VideoController get name
-echo.
-
-echo == 網路介面 ============================
-ipconfig
-echo.
-
-echo == 主機名稱 ============================
-hostname
-echo.
-"""
+        commands = [
+            ("== 系統資訊 ============================", "ver"),
+            ("== CPU 資訊 ============================", "wmic cpu get Name, NumberOfCores, NumberOfLogicalProcessors"),
+            ("== 記憶體資訊 ==========================", "wmic OS get TotalVisibleMemorySize, FreePhysicalMemory"),
+            ("== 磁碟資訊 ============================", "wmic logicaldisk get Caption, FileSystem, FreeSpace, Size"),
+            ("== GPU / 顯示卡 ========================", "wmic path win32_VideoController get name"),
+            ("== 網路介面 ============================", "ipconfig"),
+            ("== 主機名稱 ============================", "hostname")
+        ]
+        
+        output = []
         try:
-            # Windows 預設使用 CMD 執行
-            result = subprocess.run(script_content, shell=True, capture_output=True, text=True, errors='replace')
-            return result.stdout if result.stdout else result.stderr
+            for title, cmd in commands:
+                output.append(title)
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, errors='replace')
+                cmd_out = res.stdout.strip() if res.stdout.strip() else res.stderr.strip()
+                output.append(cmd_out)
+                output.append("")
+            return "\n".join(output)
         except Exception as e:
             return f"獲取 Windows 系統資訊失敗: {e}"
 
