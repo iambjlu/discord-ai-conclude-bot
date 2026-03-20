@@ -38,10 +38,6 @@ lsblk
 
 echo ""
 
-echo "== GPU / 顯示卡 ========================"
-lspci | grep -i vga
-echo ""
-
 echo "== 作業系統版本 ========================"
 cat /etc/os-release
 echo ""
