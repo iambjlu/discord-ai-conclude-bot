@@ -26,17 +26,16 @@ uname -a
 echo ""
 
 echo "== CPU 資訊 ============================"
-lscpu
+lscpu | egrep 'Architecture|CPU\(s\)|Thread|Core|Socket|Model name'
 echo ""
 
 echo "== 記憶體資訊 =========================="
-cat /proc/meminfo | grep -E "MemTotal|MemFree|MemAvailable"
 free -h
 echo ""
 
 echo "== 磁碟資訊 ============================"
 lsblk
-df -h
+
 echo ""
 
 echo "== GPU / 顯示卡 ========================"
@@ -57,10 +56,6 @@ echo ""
 
 echo "== 主機名稱 ============================"
 hostname
-echo ""
-
-echo "== 處理器資訊（詳細） ==================="
-cat /proc/cpuinfo | grep -E "model name|cpu MHz|cache size" | uniq
 echo ""
 """
         return run_shell_script(script_content, executable='/bin/bash')
@@ -161,7 +156,10 @@ class HelloSender(discord.Client):
             chunk_size = 1900
             for i in range(0, len(sys_info), chunk_size):
                 chunk = sys_info[i:i+chunk_size]
-                text_to_send = f"## 嗨 我上線囉！\n```text\n{chunk}\n```"
+                if i == 0:
+                    text_to_send = f"## 嗨 我上線囉！\n```text\n{chunk}\n```"
+                else:
+                    text_to_send = f"```text\n{chunk}\n```"
                 await channel.send(text_to_send)
                 await asyncio.sleep(1) # 避免觸發 Rate Limit
                 
