@@ -712,16 +712,20 @@ class ImageGenerator:
             # Set to 1850 to be safe.
             context = await browser.new_context(
                 viewport={"width": 1850, "height": 1000}, 
-                device_scale_factor=2, 
-                locale="zh-TW"
+                locale="zh-TW" # Removed device_scale_factor=2 to prevent huge 20MP images hanging low-end devices
             )
             page = await context.new_page()
             await page.set_content(html_content)
             await page.wait_for_timeout(500)
             
-            # Crop to body content exactly
-            body_handle = page.locator('body')
-            img_bytes = await body_handle.screenshot(type='png')
+            # Bypass Playwright's stability checks by sizing viewport and using full_page
+            width = await page.evaluate("document.body.scrollWidth")
+            height = await page.evaluate("document.body.scrollHeight")
+            await page.set_viewport_size({"width": int(width), "height": int(height)})
+            await page.wait_for_timeout(100)
+            
+            # Extend timeout to 90 seconds for slower devices encoding large PNGs
+            img_bytes = await page.screenshot(type='png', full_page=True, timeout=90000)
             await browser.close()
             
             return io.BytesIO(img_bytes)
