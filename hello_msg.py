@@ -80,7 +80,7 @@ diskutil list physical
 echo ""
 
 echo "== 詳細硬體與軟體報告 ==================="
-system_profiler SPHardwareDataType SPSoftwareDataType
+system_profiler SPHardwareDataType SPSoftwareDataType | grep -v -E 'Serial Number|UUID|UDID'
 echo ""
 """
         return run_shell_script(script_content, executable='/bin/bash')
