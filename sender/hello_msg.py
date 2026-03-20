@@ -75,7 +75,7 @@ echo "== 作業系統版本 ========================"
 sw_vers
 echo ""
 
-echo "== CPU / 記憶體簡報 ====================="
+echo "== CPU / 記憶體資訊 ====================="
 sysctl -n machdep.cpu.brand_string hw.memsize
 echo ""
 
