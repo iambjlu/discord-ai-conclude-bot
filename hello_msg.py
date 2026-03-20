@@ -42,6 +42,40 @@ echo "== 作業系統版本 ========================"
 cat /etc/os-release
 echo ""
 
+echo "== 主機名稱 ============================"
+hostname
+echo ""
+
+echo "== 處理器資訊（詳細） ==================="
+cat /proc/cpuinfo | grep -E "model name|cpu MHz|cache size" | uniq
+echo ""
+
+if curl -s -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/id" >/dev/null 2>&1; then
+    echo "== GCP 實例資訊 ========================"
+    FIELDS=("cpu-platform" "hostname" "image" "network-interfaces" "preempted" "service-accounts" "machine-type" "tags" "zone" "disks" "description")
+    for item in "${FIELDS[@]}"; do
+        val=$(curl -s -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/$item" 2>/dev/null)
+        if [ ! -z "$val" ]; then
+            echo "$item:"
+            echo "$val"
+            echo "---"
+        fi
+    done
+    echo ""
+elif curl -s -m 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" >/dev/null 2>&1; then
+    echo "== AWS 實例資訊 ========================"
+    token=$(curl -s -m 1 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null)
+    FIELDS=("instance-id" "instance-type" "placement/availability-zone" "local-ipv4" "public-ipv4" "ami-id")
+    for item in "${FIELDS[@]}"; do
+        val=$(curl -s -m 1 -H "X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/$item" 2>/dev/null)
+        if [ ! -z "$val" ]; then
+            echo "$item:"
+            echo "$val"
+            echo "---"
+        fi
+    done
+    echo ""
+fi
 echo "== 開機時間與系統運行時間 ==============="
 uptime
 echo ""
