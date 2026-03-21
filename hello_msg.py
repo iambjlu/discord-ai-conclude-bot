@@ -27,6 +27,7 @@ echo ""
 
 echo "== CPU 資訊 ============================"
 lscpu | egrep 'Architecture|CPU\\(s\\)|Thread|Core|Socket|Model name'
+cat /proc/cpuinfo | grep -E "model name|cpu MHz|cache size" | uniq
 echo ""
 
 echo "== 記憶體資訊 =========================="
@@ -46,9 +47,6 @@ echo "== 主機名稱 ============================"
 hostname
 echo ""
 
-echo "== 處理器資訊（詳細） ==================="
-cat /proc/cpuinfo | grep -E "model name|cpu MHz|cache size" | uniq
-echo ""
 
 if curl -s -f -m 1 -H "Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/id" >/dev/null 2>&1; then
     echo "== Google Cloud 執行個體 ========================"
