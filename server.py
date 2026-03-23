@@ -1495,8 +1495,14 @@ class MyClient(discord.Client):
         super().__init__(*args, **kwargs)
         self.settings = settings
         self.secrets = secrets
+        self._has_run = False # 防止 on_ready 重複觸發
 
     async def on_ready(self):
+        if self._has_run:
+            print("⚠️ 偵測到 on_ready 重複觸發，忽略本次執行。")
+            return
+        self._has_run = True
+
         print(f'✅ Bot 已登入：{self.user}')
         print('-------------------------------------------')
 
