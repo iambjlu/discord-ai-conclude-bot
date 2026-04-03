@@ -53,7 +53,7 @@ def get_settings():
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
-        "TAGGED_REPLY_PROMPT_TEMPLATE": "TAGGED_REPLY_PROMPT_TEMPLATE": """你是這個群組的機器人。
+        "TAGGED_REPLY_PROMPT_TEMPLATE": """你是這個群組的機器人。
 
 【能力範圍】
 - 只能看到這個頻道最新 {msg_limit} 則對話，無法存取其他頻道或圖片
