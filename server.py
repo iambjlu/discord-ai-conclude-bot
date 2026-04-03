@@ -111,7 +111,7 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemini-2.5-flash","gemma-3-27b-it"], # 模型列表
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3-flash-preview","gemini-2.5-flash","gemma-4-31b-it","gemma-3-27b-it"], # 模型列表
         # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-3-27b-it"], #測試用
         "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
         "BOT_NAME": "機器人",           # Bot 在對話歷史中的顯示名稱
