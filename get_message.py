@@ -11,8 +11,11 @@ NAME_LIMIT = 4        # 名字顯示長度
 MAX_MSG_LEN = 500     # 單則訊息最大長度
 TZ = timezone(timedelta(hours=8)) # GMT+8
 
+# 截斷字元 (訊息中若出現此字串，則後方內容將被捨棄，常用於過濾 Bot 總結)
+IGNORE_TOKEN = "-# 🤖"
+
 # 預設抓取天數 (若執行時沒指定 --days 則以此為準)
-DEFAULT_DAYS = 1
+DEFAULT_DAYS = 30
 
 # 預設頻道 ID 清單 (若不為空，則優先於 .env)
 # 範例: DEFAULT_CHANNELS = [121...738, 7458...152]
@@ -73,6 +76,10 @@ async def get_messages(days=1, channel_ids=None):
             count = 0
             async for msg in channel.history(after=after_date, limit=None):
                 content = msg.content
+                
+                # 實作「截斷字元」邏輯：若內容中出現此符號，則只保留標記之前的部分
+                if IGNORE_TOKEN and IGNORE_TOKEN in content:
+                    content = content.split(IGNORE_TOKEN)[0]
                 
                 # 簡化連結
                 def domain_replacer(match):
