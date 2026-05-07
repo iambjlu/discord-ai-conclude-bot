@@ -160,8 +160,8 @@ def main():
         print(f"❌ 識別過程中發生錯誤: {e}")
         # 如果是 404 Not Found，提示使用者可能該模型不可用
         if "404" in str(e):
-            print("💡 提示: 如果遇到 404 錯誤，可能是您的 API Key 沒有權限存取 gemma-4-31b-it，")
-            print("   或者該模型尚未對所有開發者開放。請嘗試改用 'gemini-1.5-flash' 測試。")
+
+            print("404錯誤")
         import traceback
         traceback.print_exc()
 

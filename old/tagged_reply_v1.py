@@ -69,7 +69,7 @@ class TaggedResponseBot(discord.Client):
 
         # ====================設定使用的模型====================
         # 模型優先順序列表 (如果不支援或失敗會自動嘗試下一個)
-        self.model_priority_list = ["gemma-4-31b-it", "gemma-3-12b-it", "gemma-3-4b-it", "gemma-3-2b-it", "gemma-3-1b-it"]
+        self.model_priority_list = ["gemini-3.1-flash-lite-preview","gemma-4-31b-it", "gemma-3-12b-it", "gemma-3-4b-it", "gemma-3-2b-it", "gemma-3-1b-it"]
         # ====================================================
         self.ignore_after_token = '> 🤖 '
         # ====================設定使用的模型====================
