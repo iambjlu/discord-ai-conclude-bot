@@ -149,7 +149,7 @@ DEPLOY_COMMAND=git pull && pm2 restart bot
 ### Google Gemini AI 設定
 *   **`GEMINI_TOKEN_LIMIT`**: AI 回應的最大 Token 數 (預設 `120000`)。
 *   **`GEMINI_MODEL_PRIORITY_LIST`**: 優先使用的模型列表，會依序嘗試直到成功。
-    *   範例: `["gemini-3-flash-preview", "gemma-3-27b-it", "gemma-3-12b-it", ...]`
+    *   範例: `["gemini-3-flash-preview", "gemma-4-31b-it", "gemma-3-12b-it", ...]`
 *   **`IGNORE_TOKEN`**: 訊息截斷標記，若讀取到此符號，之後的內容會被忽略 (避免 Bot 讀到自己的摘要)。
 *   **`GEMINI_SUMMARY_FORMAT`**: 給 AI 的 Prompt 模板，定義摘要的 Markdown 格式。
  
