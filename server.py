@@ -74,6 +74,9 @@ def get_settings():
         "DAILY_QUOTE_IMAGE_MODE": 1,     # 每日金句圖片生成 (0=關閉, 1/2=啟用)
         "LINK_SCREENSHOT_MODE": 0,       # 連結截圖
         "WEATHER_MODE": 1,               # 天氣預報 (0=停用, 1=定時, 2=強制)
+        # --- 遊戲開關 ---
+        "CHOICE_SOLVER_MODE": 0,         # 選擇困難解決器 (0=關閉, 1=開啟)
+        "MINESWEEPER_MODE": 0,           # 踩地雷 (0=關閉, 1=開啟)
         
         # --- 定時規則 (GMT+8) ---
         "AI_SUMMARY_SCHEDULE_MODULO": 4,       # AI總結頻率 (每N小時，0, 4, 8...)
@@ -96,6 +99,8 @@ def get_settings():
         "DAYS_AGO": 1,                   # 每日金句抓取範圍  (X天前) 0為今天, 1為昨天...
         "RECENT_MSG_HOURS": 4,           # AI總結抓取範圍   (X小時內 需保留排程不準時的緩衝)
         "LINK_SCREENSHOT_HOURS": 2,      # 連結截圖抓取範圍  (X小時內 需保留排程不準時的緩衝)
+
+
 
         # --- 踩地雷 ---
         "MINESWEEPER_ROWS": 6,           # 
@@ -412,29 +417,43 @@ def generate_choice_solver(settings=None):
     rows = settings["MINESWEEPER_ROWS"] if settings else 6
     cols = settings["MINESWEEPER_COLS"] if settings else 6
     mines = settings["MINESWEEPER_MINES"] if settings else 7
-
-    # 骰子 (1-6) x 10 (使用全形數字以保持等寬)
-    full_width_digits = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣']
-    dice_outcomes = [random.choice(full_width_digits) for _ in range(10)]
-    dice_str = "  ".join([f"|| {x} ||" for x in dice_outcomes])
     
-    # 硬幣 (正/反) x 10
-    coin_outcomes = ["⬆️" if random.choice([True, False]) else "⬇️" for _ in range(10)]
-    coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
+    enable_choice_solver = settings.get("CHOICE_SOLVER_MODE", 1) if settings else 1
+    enable_minesweeper = settings.get("MINESWEEPER_MODE", 1) if settings else 1
+
+    content_parts = []
+    
+    if enable_choice_solver == 1:
+        # 骰子 (1-6) x 10 (使用全形數字以保持等寬)
+        full_width_digits = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣']
+        dice_outcomes = [random.choice(full_width_digits) for _ in range(10)]
+        dice_str = "  ".join([f"|| {x} ||" for x in dice_outcomes])
+        
+        # 硬幣 (正/反) x 10
+        coin_outcomes = ["⬆️" if random.choice([True, False]) else "⬇️" for _ in range(10)]
+        coin_str = "  ".join([f"|| {x} ||" for x in coin_outcomes])
+        
+        content_parts.append(
+            "## 選擇困難解決器\n"
+            "🎲 丟個骰子吧\n\n"
+            f"{dice_str}\n\n"
+            "🪙 丟個硬幣吧\n\n"
+            f"{coin_str}\n"
+        )
+        
+    if enable_minesweeper == 1:
+        content_parts.append(
+            f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
+            f"{generate_minesweeper(rows, cols, mines)}\n"
+        )
     
     # Discord Status
     discord_status = get_discord_status()
-
-    return (
-        "## 選擇困難解決器\n"
-        "🎲 丟個骰子吧\n\n"
-        f"{dice_str}\n\n"
-        "🪙 丟個硬幣吧\n\n"
-        f"{coin_str}\n\n"
-        f"💣 踩個地雷吧 ( {mines} 個地雷，{rows} x {cols} )\n\n"
-        f"{generate_minesweeper(rows, cols, mines)}\n\n"
+    content_parts.append(
         f"## 📡 [Discord 服務狀態](https://discordstatus.com)\n{discord_status}\n"
     )
+
+    return "\n".join(content_parts)
 
 # ==========================================
 #              主要邏輯 (FEATURES)
