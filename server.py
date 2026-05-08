@@ -713,10 +713,9 @@ async def run_ai_summary(client, settings, secrets):
                                 f"{generated_text}\n"
                                 f"{footer_model_text}\n"
                                 f"> -# 🤓 AI 總結內容僅供參考，敬請核實。\n"
+                                f"\n{generate_choice_solver(settings)}"
                             )
                             await send_split_message(target_ch, report)
-                            # 第二則訊息：選擇困難解決器
-                            await send_split_message(target_ch, generate_choice_solver(settings))
                             print("   ✅ AI 總結已發送")
                         else:
                             print(f"   ❌ 所有模型嘗試皆失敗或無回應")
@@ -726,10 +725,8 @@ async def run_ai_summary(client, settings, secrets):
                                 "reason": "All models in priority list failed.",
                                 "timestamp": datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                             }
-                            error_msg = f"## ⚠️ Gemini 發生錯誤 (所有模型嘗試失敗)\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```"
+                            error_msg = f"## ⚠️ Gemini 發生錯誤 (所有模型嘗試失敗)\n```json\n{json.dumps(error_payload, indent=2, ensure_ascii=False)}\n```\n\n{generate_choice_solver(settings)}"
                             await send_split_message(target_ch, error_msg)
-                            # 第二則訊息：選擇困難解決器
-                            await send_split_message(target_ch, generate_choice_solver(settings))
                     else:
                          print("   ⚠️ 缺少 Gemini Key，跳過 AI 總結")
                 else:
@@ -740,11 +737,10 @@ async def run_ai_summary(client, settings, secrets):
                     report = (
                         f"# ✨ {hours} 小時重點摘要出爐囉！\n"
                         f"** 🕘 {start_str} ~ {end_str}**\n\n"
-                        f"**(這段時間內沒有新訊息)**\n"
+                        f"**(這段時間內沒有新訊息)**\n\n"
+                        f"{generate_choice_solver(settings)}"
                     )
                     await target_ch.send(report)
-                    # 第二則訊息：選擇困難解決器
-                    await target_ch.send(generate_choice_solver(settings))
             else:
                 print(f"   ⚠️ 找不到目標頻道 {target_ch_id}")
     except Exception as e:
