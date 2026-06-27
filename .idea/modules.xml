@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/dc-bot-student-crew.iml" filepath="$PROJECT_DIR$/dc-bot-student-crew.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/discord-ai-conclude-bot.iml" filepath="$PROJECT_DIR$/.idea/discord-ai-conclude-bot.iml" />
     </modules>
   </component>
 </project>
