@@ -63,7 +63,7 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL": "gemini-3-flash-preview", 
+        "GEMINI_MODEL": "gemini-3.5-flash", 
         "GEMINI_SUMMARY_FORMAT": """
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。
 ## [頻道名]

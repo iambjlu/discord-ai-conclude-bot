@@ -79,7 +79,7 @@ def get_settings():
         "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
         "DEFAULT_TOKEN_LIMIT": 75000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-3.1-flash-lite","gemini-2.5-flash"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-3.5-flash-lite","gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -127,7 +127,7 @@ class TaggedResponseBot(discord.Client):
         else:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
 
-        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.1-flash-lite","gemma-4-31b-it"])
+        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
 
     async def on_ready(self):
@@ -344,7 +344,7 @@ class TaggedResponseBot(discord.Client):
                         if is_smarter_mode:
                             model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
                         else:
-                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.1-flash-lite","gemma-4-31b-it"])[0]
+                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])[0]
 
                         print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
                         

@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="2764344e-a518-44c0-ab07-2c0261bf22c6" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tagged_reply.py" beforeDir="false" afterPath="$PROJECT_DIR$/tagged_reply.py" afterDir="false" />
+    <list default="true" id="2764344e-a518-44c0-ab07-2c0261bf22c6" name="Changes" comment="model update">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/old/server_v1.py" beforeDir="false" afterPath="$PROJECT_DIR$/old/server_v1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/old/server_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/old/server_v2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/old/server_v3.py" beforeDir="false" afterPath="$PROJECT_DIR$/old/server_v3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/old/tagged_reply_v1.py" beforeDir="false" afterPath="$PROJECT_DIR$/old/tagged_reply_v1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/server.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,11 +40,16 @@
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cidr.known.project.marker": "true",
     "com.google.cloudcode.ide_session_index": "20260627_0000",
     "dart.analysis.tool.window.visible": "false",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "settings.editor.selected.configurable": "google.usagetracker.settings",
     "show.migrate.to.gradle.popup": "false",
@@ -68,12 +79,25 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1782570945515</updated>
-      <workItem from="1782570946753" duration="132000" />
+      <workItem from="1782570946753" duration="7294000" />
     </task>
+    <task id="LOCAL-00001" summary="model update">
+      <option name="closed" value="true" />
+      <created>1782571096108</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1782571096108</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="model update" />
+    <option name="LAST_COMMIT_MESSAGE" value="model update" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

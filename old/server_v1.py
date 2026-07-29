@@ -112,7 +112,7 @@ class MyClient(discord.Client):
         show_attachments = False # 是否顯示附件網址
         simplify_links = True  # 是否將連結簡化為標題
         gemini_token_limit = 120000 # 總結輸出的 Token 上限
-        gemini_model = "gemini-3-flash-preview" # 使用的模型
+        gemini_model = "gemini-3.5-flash" # 使用的模型
         # 要求的總結格式
         gemini_summary_format = """
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名，不要多餘文字。
