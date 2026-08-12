@@ -30,7 +30,7 @@ python3 --version
 程式內建了自動檢查與安裝機制，但您也可以手動安裝：
 ```bash
 pip install -r requirements.txt
-playwright install  # 安裝 Playwright 瀏覽器核心
+PLAYWRIGHT_BROWSERS_PATH=browsers python -m playwright install chromium  # 安裝 Playwright 瀏覽器（存於專案目錄，避免被 cache 清理）
 ```
 *必要的套件包含：`discord.py`, `google-genai`, `python-dotenv`, `playwright`, `pillow`*
 
