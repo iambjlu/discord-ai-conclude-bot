@@ -39,6 +39,8 @@ from google.genai import types
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+import aiohttp
+import base64
 
 def get_settings():
     """回傳使用者偏好的設定參數"""
@@ -65,6 +67,8 @@ def get_settings():
 - 句子短，適當換行，口吻貼近群組對話歷史
 - 問你意見就直接給意見，不要打太極
 - 不重複用戶說過的話，不追問跟進問題
+- 請勿使用LaTeX
+- 使用繁體中文（台灣）
 
 【當用戶情緒低落時】
 先給同理心，再做其他事，用戶叫你做什麼就做什麼
@@ -89,6 +93,7 @@ def get_settings():
         "LOCAL_TOKEN_LIMIT": 120000,
         "LOCAL_TOTAL_MSG_LIMIT": 150,
         "LOCAL_MAX_MSG_LENGTH": 150,
+        "LOCAL_AI_IMAGE_SUPPORT": True,   # 本地模型是否支援圖片辨識 (可由環境變數 LOCAL_AI_IMAGE_SUPPORT 覆蓋)
     }
 
 def get_secrets():
@@ -115,15 +120,19 @@ def get_secrets():
     local_server = os.getenv('LOCAL_AI_SERVER', '')
     local_model = os.getenv('LOCAL_AI_MODEL', '')
     local_api_key = os.getenv('LOCAL_AI_API_KEY', '')
+    local_image_support = os.getenv('LOCAL_AI_IMAGE_SUPPORT', 'true').lower() in ('true', '1', 'yes')
     secrets['LOCAL_AI_SERVER'] = local_server
     secrets['LOCAL_AI_MODEL'] = local_model
     secrets['LOCAL_AI_API_KEY'] = local_api_key
+    secrets['LOCAL_AI_IMAGE_SUPPORT'] = local_image_support
     if not local_server:
         print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
     if not local_model:
         print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
     if not local_api_key:
         print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
+    if not local_image_support:
+        print("ℹ️ 本地模型已關閉圖片辨識功能 (LOCAL_AI_IMAGE_SUPPORT=false)")
 
     return secrets
 
@@ -164,6 +173,11 @@ class TaggedResponseBot(discord.Client):
 
         self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
+
+        # 本地模型圖片支援設定：secrets 可覆蓋 settings 的預設值
+        self.local_image_support = self.secrets.get('LOCAL_AI_IMAGE_SUPPORT', self.settings.get('LOCAL_AI_IMAGE_SUPPORT', True))
+        if not self.local_image_support:
+            print("ℹ️ 本地模型圖片辨識功能已關閉")
 
     async def on_ready(self):
         print('-------------------------------------------')
@@ -288,12 +302,12 @@ class TaggedResponseBot(discord.Client):
                     return
 
             # 判斷是否啟動本地模型模式
-            local_keywords = self.settings.get("LOCAL_MODEL_MODE_KEYWORD", "/本地模型")
+            local_keywords = self.settings.get("LOCAL_MODE_KEYWORD", "/本地模型")
             is_local_model_mode = local_keywords and (local_keywords in content_clean)
 
             # ── 本地模型圖片偵測 ──
             local_image_urls: list[str] = []
-            if is_local_model_mode and is_triggered:
+            if is_local_model_mode and is_triggered and self.local_image_support:
                 # 決定目標訊息 (被提及的訊息 或 回覆的機器人的訊息)
                 target_for_image: discord.Message | None = None
                 if message.author == self.user:
@@ -315,7 +329,7 @@ class TaggedResponseBot(discord.Client):
 
                 if target_for_image:
                     for att in target_for_image.attachments:
-                        if att.is_plain_image():
+                        if att.content_type and "image" in att.content_type:
                             local_image_urls.append(att.url)
                     if local_image_urls:
                         print(f"🖼️ 本地模型偵測到 {len(local_image_urls)} 張圖片: {local_image_urls}")
@@ -366,8 +380,8 @@ class TaggedResponseBot(discord.Client):
 
                         print(f"   🖼️ 目標圖片網址: {target_image_url}")
 
-                        # 準備 Prompt (移除指令關鍵字)
-                        prompt_text = content_clean.replace("/辨識圖片", "").replace(smarter_keywords, "").strip()
+                        # 準備 Prompt (移除所有指令關鍵字)
+                        prompt_text = content_clean.replace("/辨識圖片", "").replace(smarter_keywords, "").replace(local_keywords, "").strip()
                         if not prompt_text:
                             prompt_text = "請詳細描述這張圖片的內容。" # 預設 Prompt
 
@@ -375,9 +389,11 @@ class TaggedResponseBot(discord.Client):
                         # 加強: 抓取少量歷史訊息作為參考 (1/3 限額)
                         # ------------------------------------------------------------------
                         try:
-                            # 決定限額
+                            # 決定限額 (優先順序：/本地模型 > /聰明模型 > 一般模式)
                             base_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
-                            if is_smarter_mode:
+                            if is_local_model_mode:
+                                base_limit = self.settings.get("LOCAL_TOTAL_MSG_LIMIT", 150)
+                            elif is_smarter_mode:
                                 base_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
                             
                             history_limit = max(base_limit // 4, 3) # 至少抓 3 則
@@ -410,53 +426,108 @@ class TaggedResponseBot(discord.Client):
                             print(f"   ⚠️ 抓取歷史失敗 (不影響圖片辨識): {h_e}")
 
                         # 準備模型
-                        # 如果有 /聰明模型 -> 使用 Smarter List 第一個
-                        # 否則 -> 使用 Normal List 第一個
-                        if is_smarter_mode:
+                        # 優先順序：/本地模型 > /聰明模型 > 一般模式
+                        if is_local_model_mode:
+                            if not self.local_ai_client:
+                                await message.reply("❌ 無法辨識圖片：本地 AI 服務未設定或初始化失敗。")
+                                return
+                            model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
+                            use_local = True
+                        elif is_smarter_mode:
                             model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
+                            use_local = False
                         else:
                             model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])[0]
+                            use_local = False
 
                         print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
-                        
-                        # 呼叫 GenAI
-                        # image_reg.py 參考用法: types.Part.from_uri(file_uri=url, mime_type=...)
-                        # 簡單判斷 mime (雖 Discord url 通常有 .jpg/.png，但 API 其實蠻寬容，用 image/jpeg 或是 auto detect 通常也可)
-                        mime_type = "image/jpeg"
-                        lower_url = target_image_url.lower()
-                        if ".png" in lower_url: mime_type = "image/png"
-                        elif ".webp" in lower_url: mime_type = "image/webp"
 
-                        image_part = types.Part.from_uri(file_uri=target_image_url, mime_type=mime_type)
-                        
-                        contents = [prompt_text, image_part]
-                        
-                        response = await self.genai_client.aio.models.generate_content(
-                            model=model_name,
-                            contents=contents,
-                            config=types.GenerateContentConfig(
-                                temperature=0.2 # 圖片辨識稍微精確點
+                        if use_local:
+                            # === 使用本地模型 (OpenAI Compatible) ===
+                            # 判斷 mime
+                            mime_type = "image/jpeg"
+                            lower_url = target_image_url.lower()
+                            if ".png" in lower_url: mime_type = "image/png"
+                            elif ".webp" in lower_url: mime_type = "image/webp"
+
+                            # 將圖片轉為 base64DataURL 格式 (OpenAI Compatible API 標準)
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(target_image_url) as img_resp:
+                                    img_bytes = await img_resp.read()
+                                    b64 = base64.b64encode(img_bytes).decode('utf-8')
+                                    data_url = f"data:{mime_type};base64,{b64}"
+
+                            content_parts: list[dict] = [{"type": "text", "text": prompt_text}]
+                            content_parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
+                            api_messages = [{"role": "user", "content": content_parts}]
+
+                            response = await self.local_ai_client.chat.completions.create(
+                                model=model_name,
+                                messages=api_messages,
+                                max_tokens=8192,
+                                temperature=0.2,
                             )
-                        )
-                        
-                        if response.text:
-                            if "gemini" in model_name.lower():
-                                footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemini AI 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
+
+                            if response.choices and response.choices[0].message.content:
+                                reply_content = response.choices[0].message.content
+                                used_model = model_name
                             else:
-                                footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemma 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
+                                reply_content = "🤖 模型看完了圖片，但沒有回傳任何文字描述。"
+                                used_model = model_name
+
+                            footer_model_text = f"> -# 🤖 圖片辨識由本地模型「{model_name}」驅動。\n> -# 💡 使用「`/本地模型`」以嘗試使用此模型。"
 
                             footer = (
                                 f"\n"
                                 f"{footer_model_text}\n"
                                 f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)，以及少量對話歷史({history_limit}則)\n"
                                 f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
-                                f"> -# 📖 多模態模式回應內容不會參考網路資料。\n"
                                 f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
                             )
-                            await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
-                            print("   ✅ 圖片辨識完成並回覆")
+                            await message.reply(reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
+                            print("   ✅ 本地模型圖片辨識完成並回覆")
                         else:
-                            await message.reply("🤖 模型看完了圖片，但沒有回傳任何文字描述。")
+                            # === 使用雲端 Gemini 模型 ===
+                            # image_reg.py 參考用法: types.Part.from_uri(file_uri=url, mime_type=...)
+                            # 簡單判斷 mime (雖 Discord url 通常有 .jpg/.png，但 API 其實蠻寬容，用 image/jpeg 或是 auto detect 通常也可)
+                            mime_type = "image/jpeg"
+                            lower_url = target_image_url.lower()
+                            if ".png" in lower_url: mime_type = "image/png"
+                            elif ".webp" in lower_url: mime_type = "image/webp"
+
+                            image_part = types.Part.from_uri(file_uri=target_image_url, mime_type=mime_type)
+
+                            contents = [prompt_text, image_part]
+
+                            response = await self.genai_client.aio.models.generate_content(
+                                model=model_name,
+                                contents=contents,
+                                config=types.GenerateContentConfig(
+                                    temperature=0.2 # 圖片辨識稍微精確點
+                                )
+                            )
+
+                            if response.text:
+                                if "gemini" in model_name.lower():
+                                    footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemini AI 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
+                                else:
+                                    if self.local_ai_client:
+                                        footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemma 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。使用「`/本地模型`」以嘗試存取本地模型"
+                                    else:
+                                        footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemma 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
+
+                                footer = (
+                                    f"\n"
+                                    f"{footer_model_text}\n"
+                                    f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)，以及少量對話歷史({history_limit}則)\n"
+                                    f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
+                                    f"> -# 📖 多模態模式回應內容不會參考網路資料。\n"
+                                    f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
+                                )
+                                await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
+                                print("   ✅ 圖片辨識完成並回覆")
+                            else:
+                                await message.reply("🤖 模型看完了圖片，但沒有回傳任何文字描述。")
 
                     except Exception as e:
                         print(f"❌ 圖片辨識失敗: {e}")
@@ -683,9 +754,6 @@ class TaggedResponseBot(discord.Client):
                             prev_msg_content = f" (上一句 {author_name}: {content})"
                             found_prev = True
 
-                    if not all_collected_msgs:
-                        await message.reply(f"❌ 過去 {msg_limit} 則內沒有足夠的對話內容可以分析。")
-                        return
 
                     # 4.5 排序與合併
                     # 將 dict 轉回 list 並依時間排序
@@ -746,6 +814,20 @@ class TaggedResponseBot(discord.Client):
                             think_or_not=iter_think
                         )
 
+                        # 根據圖片支援狀態調整模型能力描述
+                        if self.local_image_support:
+                            # 圖片支援開啟：告知模型可以看到圖片
+                            prompt_text = prompt_text.replace(
+                                "無法存取其他頻道或圖片",
+                                "無法存取其他頻道，但可以看到使用者上傳的圖片"
+                            )
+                        else:
+                            # 圖片支援關閉：告知模型無法看圖片
+                            prompt_text = prompt_text.replace(
+                                "無法存取其他頻道或圖片",
+                                "無法存取其他頻道或圖片，也不支援圖片辨識功能"
+                            )
+
                         print(f"   🏠 嘗試使用本地模型: {model_name} (Max Token: {iter_token_limit})...")
                         try:
                             # ── 建構 messages（純文字 或 多模態）──
@@ -771,6 +853,25 @@ class TaggedResponseBot(discord.Client):
                                 reply_content = response.choices[0].message.content
                                 used_model = model_name
                                 print(f"   ✅ 本地模型 {model_name} 成功回應")
+                                # 印出本地模型回應詳情
+                                response_dict = {
+                                    "model": response.model,
+                                    "choices": [
+                                        {
+                                            "role": c.message.role,
+                                            "content": c.message.content,
+                                            "finish_reason": c.finish_reason,
+                                        }
+                                        for c in response.choices
+                                    ],
+                                }
+                                if response.usage:
+                                    response_dict["usage"] = {
+                                        "prompt_tokens": response.usage.prompt_tokens,
+                                        "completion_tokens": response.usage.completion_tokens,
+                                        "total_tokens": response.usage.total_tokens,
+                                    }
+                                print(f"本地模型回應詳情:\n{response_dict}")
                             else:
                                 print("   ⚠️ 本地模型未產生有效回應")
                                 last_error = Exception("本地模型未產生有效回應")
@@ -858,7 +959,10 @@ class TaggedResponseBot(discord.Client):
                         elif "gemini" in used_model.lower():
                             footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
                         else:
-                            footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
+                            if self.local_ai_client:
+                                footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。使用「`/本地模型`」以嘗試存取本地模型"
+                            else:
+                                footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
 
                         # 檢查是否發生了聰明模型回退
                         fallback_warning = ""
@@ -872,10 +976,17 @@ class TaggedResponseBot(discord.Client):
                             # f"> 🤖 以上回覆由「{used_model}」模型根據此頻道最新 {msg_limit} 則{extra_info}訊息回覆 (總限額 {total_limit})。\n"
                             f"{fallback_warning}"
                             f"{footer_model_text}\n"
-                            f"> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識\n"
                             f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                             f"> -# 📖 回應內容不會參考附件內容、其他頻道、網路資料、訊息表情。"
                         )
+                        # 根據圖片支援狀態顯示不同 footer
+                        if is_local_model_mode:
+                            if self.local_image_support:
+                                footer += f"\n> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識"
+                            else:
+                                footer += f"\n> -# 🖼️ 本地模型不支援或已在後台關閉圖片辨識功能"
+                        else:
+                            footer += f"\n> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識"
                         await message.reply(reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                         print("   ✅ 已傳送回應")
                     else:
