@@ -82,7 +82,7 @@ def get_settings():
         "DAILY_AI_SUMMARY_MODE": 1,      # 每日摘要彙整 (定時=午夜，與金句相同)
         "DAILY_QUOTE_IMAGE_MODE": 1,     # 每日金句圖片生成 (0=關閉, 1/2=啟用)
         "LINK_SCREENSHOT_MODE": 0,       # 連結截圖
-        "WEATHER_MODE": 2,               # 天氣預報 (0=停用, 1=定時, 2=強制)
+        "WEATHER_MODE": 1,               # 天氣預報 (0=停用, 1=定時, 2=強制)
         # --- 遊戲開關 ---
         "CHOICE_SOLVER_MODE": 0,         # 選擇困難解決器 (0=關閉, 1=開啟)
         "MINESWEEPER_MODE": 0,           # 踩地雷 (0=關閉, 1=開啟)
