@@ -62,6 +62,11 @@ WEATHER_KEY=你的_CWA_API_KEY
 
 # 關鍵字觸發執行的指令 (可選)
 DEPLOY_COMMAND=git pull && pm2 restart bot
+
+# 額外的本地 AI 伺服器設定 (可選，若要使用額外本地化模型)
+LOCAL_AI_SERVER=http://172.20.10.3:8000/v1
+LOCAL_AI_MODEL=Qwen3.6-35B-A3B-6bit
+LOCAL_AI_API_KEY=0000
 ```
 
 ---

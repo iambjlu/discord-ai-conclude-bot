@@ -7,6 +7,7 @@ def check_requirements():
         'discord': 'discord.py',
         'google.genai': 'google-genai',
         'dotenv': 'python-dotenv',
+        'openai': 'openai',
     }
     missing = []
     for module_name, package_name in required_packages.items():
@@ -37,6 +38,7 @@ from google import genai
 from google.genai import types
 
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 def get_settings():
     """回傳使用者偏好的設定參數"""
@@ -48,8 +50,8 @@ def get_settings():
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "TZ": timezone(timedelta(hours=8)),    # 機器人運作時區
         "BOT_NAME": "機器人",               # Bot 在對話歷史中的顯示名稱
-        "TOTAL_MSG_LIMIT": 40,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
-        "MAX_MSG_LENGTH": 60,             # 單則訊息最大長度 (超過截斷)
+        "TOTAL_MSG_LIMIT": 150,            # 訊息抓取總則數上限 (會有回覆時，自動分配最新/前/後各 1/3)
+        "MAX_MSG_LENGTH": 150,             # 單則訊息最大長度 (超過截斷)
         "IGNORE_TOKEN": "-# 🤖",             # 截斷標記
         "ENABLE_EXEC_COMMAND": True,      # 是否啟用關鍵字執行指令
         "EXEC_COMMAND_KEYWORD": "update_bot",     # 觸發執行的關鍵字
@@ -67,7 +69,7 @@ def get_settings():
 【當用戶情緒低落時】
 先給同理心，再做其他事，用戶叫你做什麼就做什麼
 
-{think_on_not}
+{think_or_not}
 
 ━━━━━━━━━━━━━━━━━━━━
 ⚡ 當前任務（最高優先，忽略一切歷史衝突）
@@ -77,12 +79,16 @@ def get_settings():
 以下是近期對話歷史（僅供背景參考）：
 {context_str}""",
         "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
-        "DEFAULT_TOKEN_LIMIT": 75000,
+        "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
         "SMARTER_MODEL_PRIORITY_LIST": ["gemini-3.5-flash-lite","gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
+        "LOCAL_MODE_KEYWORD": "/本地模型",
+        "LOCAL_TOKEN_LIMIT": 120000,
+        "LOCAL_TOTAL_MSG_LIMIT": 150,
+        "LOCAL_MAX_MSG_LENGTH": 150,
     }
 
 def get_secrets():
@@ -105,6 +111,20 @@ def get_secrets():
         print("⚠️ 警告: 未讀取到 GEMINI_API_KEY")
     secrets['GEMINI_API_KEY'] = gemini_key
 
+    # 3. Local AI Server (OpenAI Compatible)
+    local_server = os.getenv('LOCAL_AI_SERVER', '')
+    local_model = os.getenv('LOCAL_AI_MODEL', '')
+    local_api_key = os.getenv('LOCAL_AI_API_KEY', '')
+    secrets['LOCAL_AI_SERVER'] = local_server
+    secrets['LOCAL_AI_MODEL'] = local_model
+    secrets['LOCAL_AI_API_KEY'] = local_api_key
+    if not local_server:
+        print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
+    if not local_model:
+        print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
+    if not local_api_key:
+        print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
+
     return secrets
 
 # 設定標準輸出緩衝
@@ -126,6 +146,21 @@ class TaggedResponseBot(discord.Client):
                 print(f"❌ GenAI Client 初始化失敗: {e}")
         else:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
+
+        # 初始化 Local AI Client (OpenAI Compatible)
+        self.local_ai_client = None
+        if self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL'):
+            try:
+                api_key = self.secrets.get('LOCAL_AI_API_KEY') or None
+                self.local_ai_client = AsyncOpenAI(
+                    base_url=self.secrets['LOCAL_AI_SERVER'],
+                    api_key=api_key,
+                )
+                print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
+            except Exception as e:
+                print(f"❌ Local AI Client 初始化失敗: {e}")
+        else:
+            print("⚠️ 警告: 未設定 LOCAL_AI_SERVER 或 LOCAL_AI_MODEL")
 
         self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
@@ -251,6 +286,42 @@ class TaggedResponseBot(discord.Client):
                     print(f"❌ 更新或重啟失敗: {e}")
                     await message.reply(f"❌ 更新或重啟失敗: {e}")
                     return
+
+            # 判斷是否啟動本地模型模式
+            local_keywords = self.settings.get("LOCAL_MODEL_MODE_KEYWORD", "/本地模型")
+            is_local_model_mode = local_keywords and (local_keywords in content_clean)
+
+            # ── 本地模型圖片偵測 ──
+            local_image_urls: list[str] = []
+            if is_local_model_mode and is_triggered:
+                # 決定目標訊息 (被提及的訊息 或 回覆的機器人的訊息)
+                target_for_image: discord.Message | None = None
+                if message.author == self.user:
+                    # 回覆 Bot 的情況 → 拿 message.reference.resolved 或自取 ref_msg
+                    target_for_image = message.reference.resolved if message.reference and message.reference.message_id else ref_msg
+                elif message.attachments:
+                    # 直接 @Bot 且有附件 → 直接看當前訊息
+                    target_for_image = message
+                else:
+                    # @Bot 無附件 → 檢查是否回覆其他有附件的訊息
+                    if message.reference and message.reference.message_id:
+                        try:
+                            if message.reference.resolved:
+                                target_for_image = message.reference.resolved
+                            else:
+                                target_for_image = await message.channel.fetch_message(message.reference.message_id)
+                        except Exception:
+                            pass
+
+                if target_for_image:
+                    for att in target_for_image.attachments:
+                        if att.is_plain_image():
+                            local_image_urls.append(att.url)
+                    if local_image_urls:
+                        print(f"🖼️ 本地模型偵測到 {len(local_image_urls)} 張圖片: {local_image_urls}")
+
+            if is_local_model_mode:
+                print(f"🏠 偵測到本地模型關鍵字: {local_keywords}")
 
             # 判斷是否啟動 Smarter Mode
             smarter_keywords = self.settings.get("SMARTER_MODE_KEYWORD", "/聰明模型")
@@ -407,7 +478,11 @@ class TaggedResponseBot(discord.Client):
                     total_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
                     msg_max_length_limit = self.settings.get("MAX_MSG_LENGTH", 100)
 
-                    if is_smarter_mode:
+                    if is_local_model_mode:
+                        total_limit = self.settings.get("LOCAL_TOTAL_MSG_LIMIT", 150)
+                        msg_max_length_limit = self.settings.get("LOCAL_MAX_MSG_LENGTH", 150)
+                        print(f"   🏠 本地模型模式啟用，抓取限制: {total_limit} 則, 長度 {msg_max_length_limit}")
+                    elif is_smarter_mode:
                         total_limit = self.settings.get("SMARTER_TOTAL_MSG_LIMIT", 300)
                         msg_max_length_limit = self.settings.get("SMARTER_MAX_MSG_LENGTH", 5000)
                         print(f"   🧠 Smarter Mode 啟用，提升抓取限制: {total_limit} 則, 長度 {msg_max_length_limit}")
@@ -634,9 +709,9 @@ class TaggedResponseBot(discord.Client):
                     # print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
                     print(f"--- 收集到的訊息內容 ---\n{full_context_str}\n--------------------")
 
-                    # 5. 呼叫 AI 模型 (嘗試優先順序列表)
-                    if not self.genai_client:
-                        await message.reply("❌ 無法回應：未設定 GEMINI_API_KEY。")
+                    # 5. 呼叫 AI 模型
+                    if not self.genai_client and not self.local_ai_client:
+                        await message.reply("❌ 無法回應：未設定任何 AI 服務。")
                         return
 
                     # 決定 prompt 後綴 (優先使用回覆參照，若無則使用上一句)
@@ -645,80 +720,131 @@ class TaggedResponseBot(discord.Client):
                         final_suffix = prev_msg_content
 
                     prompt_template = self.settings.get("TAGGED_REPLY_PROMPT_TEMPLATE", "")
-                    
-                    # 預設參數 (一般模式)
-                    smarter_list = [] 
-                    current_model_list = self.model_priority_list
-                    
-                    if is_smarter_mode:
-                         print(f"   🧠 切換至 Smarter Model 清單 (含備援)")
-                         smarter_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", [])
-                         # 合併清單：聰明模型優先，若失敗則回退到一般模型清單
-                         current_model_list = smarter_list + [m for m in self.model_priority_list if m not in smarter_list]
 
                     reply_content = None
                     used_model = None
                     last_error = None
-                    
-                    normal_msg_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
 
-                    for model_name in current_model_list:
-                        # 判斷當前模型是否為聰明模型 (以決定 Token 上限與 Context 大小)
-                        is_current_smart = (model_name in smarter_list)
-                        
-                        # 決定參數
-                        if is_current_smart:
-                            iter_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 120000)
-                            iter_think = "並請認真思考。"
-                            iter_context_str = full_context_str
-                            iter_limit_display = msg_limit
-                        else:
-                            # Fallback 或 一般模式
-                            iter_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
-                            iter_think = ""
-                            iter_limit_display = normal_msg_limit
-                            
-                            # 若 Context 太長 (因為是用 Smarter Mode 抓的)，需截斷給一般模型
-                            if len(sorted_lines) > normal_msg_limit:
-                                fallback_lines = sorted_lines[-normal_msg_limit:]
-                                if author_mapping:
-                                    iter_context_str = mapping_section + "\n" + "\n".join(fallback_lines) + "\n"
-                                else:
-                                    iter_context_str = "\n".join(fallback_lines)
-                            else:
-                                iter_context_str = full_context_str
+                    if is_local_model_mode:
+                        # === 本地模型模式（支援圖片辨識）===
+                        if not self.local_ai_client:
+                            await message.reply("❌ 無法回應：本地 AI 服務未設定或初始化失敗。")
+                            return
 
-                        # 動態生成 Prompt
-                        prompt = prompt_template.format(
-                            msg_limit=iter_limit_display, 
-                            context_str=iter_context_str, 
-                            u_name=u_name, 
+                        model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
+                        iter_token_limit = self.settings.get("LOCAL_AI_MAX_TOKENS", 80000)
+                        iter_temperature = self.settings.get("LOCAL_AI_TEMPERATURE", 0.7)
+                        iter_context_str = full_context_str
+                        iter_limit_display = msg_limit
+                        iter_think = ""
+
+                        prompt_text = prompt_template.format(
+                            msg_limit=iter_limit_display,
+                            context_str=iter_context_str,
+                            u_name=u_name,
                             content_clean=content_clean + final_suffix,
-                            think_on_not=iter_think
+                            think_or_not=iter_think
                         )
 
-                        print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {iter_token_limit}, Context: {iter_limit_display}則)...")
+                        print(f"   🏠 嘗試使用本地模型: {model_name} (Max Token: {iter_token_limit})...")
                         try:
-                            # print(prompt) # 減少 Log 雜訊
-                            response = await self.genai_client.aio.models.generate_content(
+                            # ── 建構 messages（純文字 或 多模態）──
+                            if local_image_urls:
+                                # 多模態格式：text + image_url
+                                content_parts: list[dict] = [{"type": "text", "text": prompt_text}]
+                                for img_url in local_image_urls:
+                                    content_parts.append({"type": "image_url", "image_url": {"url": img_url}})
+                                api_messages = [{"role": "user", "content": content_parts}]
+                                print(f"   📸 多模態模式：附加 {len(local_image_urls)} 張圖片")
+                            else:
+                                # 純文字模式
+                                api_messages = [{"role": "user", "content": prompt_text}]
+
+                            response = await self.local_ai_client.chat.completions.create(
                                 model=model_name,
-                                contents=prompt,
-                                config=types.GenerateContentConfig(
-                                    max_output_tokens=iter_token_limit,
-                                    temperature=1 
-                                )
+                                messages=api_messages,
+                                max_tokens=iter_token_limit,
+                                temperature=iter_temperature,
                             )
-                            
-                            if response.text:
-                                reply_content = response.text
+
+                            if response.choices and response.choices[0].message.content:
+                                reply_content = response.choices[0].message.content
                                 used_model = model_name
-                                print(f"   ✅ 模型 {model_name} 成功回應")
-                                print(f"Gemini 回應詳情:\n{response.model_dump_json(indent=2)}")
-                                break # 成功就跳出迴圈
+                                print(f"   ✅ 本地模型 {model_name} 成功回應")
+                            else:
+                                print("   ⚠️ 本地模型未產生有效回應")
+                                last_error = Exception("本地模型未產生有效回應")
                         except Exception as e:
-                            print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                            print(f"   ⚠️ 本地模型 {model_name} 失敗: {e}")
                             last_error = e
-                            continue # 失敗則嘗試下一個
+                    else:
+                        # === Gemini 模式（原有邏輯不變）===
+                        smarter_list = []
+                        current_model_list = self.model_priority_list
+
+                        if is_smarter_mode:
+                            print(f"   🧠 切換至 Smarter Model 清單 (含備援)")
+                            smarter_list = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", [])
+                            current_model_list = smarter_list + [m for m in self.model_priority_list if m not in smarter_list]
+
+                        normal_msg_limit = self.settings.get("TOTAL_MSG_LIMIT", 50)
+
+                        for model_name in current_model_list:
+                            # 判斷當前模型是否為聰明模型 (以決定 Token 上限與 Context 大小)
+                            is_current_smart = (model_name in smarter_list)
+
+                            # 決定參數
+                            if is_current_smart:
+                                iter_token_limit = self.settings.get("SMARTER_TOKEN_LIMIT", 120000)
+                                iter_think = "並請認真思考。"
+                                iter_context_str = full_context_str
+                                iter_limit_display = msg_limit
+                            else:
+                                # Fallback 或 一般模式
+                                iter_token_limit = self.settings.get("DEFAULT_TOKEN_LIMIT", 3000)
+                                iter_think = ""
+                                iter_limit_display = normal_msg_limit
+
+                                # 若 Context 太長 (因為是用 Smarter Mode 抓的)，需截斷給一般模型
+                                if len(sorted_lines) > normal_msg_limit:
+                                    fallback_lines = sorted_lines[-normal_msg_limit:]
+                                    if author_mapping:
+                                        iter_context_str = mapping_section + "\n" + "\n".join(fallback_lines) + "\n"
+                                    else:
+                                        iter_context_str = "\n".join(fallback_lines)
+                                else:
+                                    iter_context_str = full_context_str
+
+                            # 動態生成 Prompt
+                            prompt = prompt_template.format(
+                                msg_limit=iter_limit_display,
+                                context_str=iter_context_str,
+                                u_name=u_name,
+                                content_clean=content_clean + final_suffix,
+                                think_or_not=iter_think
+                            )
+
+                            print(f"   🤖 嘗試使用模型: {model_name} (Max Token: {iter_token_limit}, Context: {iter_limit_display}則)...")
+                            try:
+                                response = await self.genai_client.aio.models.generate_content(
+                                    model=model_name,
+                                    contents=prompt,
+                                    config=types.GenerateContentConfig(
+                                        max_output_tokens=iter_token_limit,
+                                        temperature=1
+                                    )
+                                )
+
+                                if response.text:
+                                    reply_content = response.text
+                                    used_model = model_name
+                                    print(f"   ✅ 模型 {model_name} 成功回應")
+                                    print(f"Gemini 回應詳情:\n{response.model_dump_json(indent=2)}")
+                                    break # 成功就跳出迴圈
+                            except Exception as e:
+                                print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                                last_error = e
+                                continue # 失敗則嘗試下一個
 
                     # 6. 回覆結果
                     if reply_content and used_model:
@@ -727,7 +853,9 @@ class TaggedResponseBot(discord.Client):
                         if is_reply_mode and ref_msg_ctx:
                             extra_info = f" + 被回覆訊息前後 {ref_limit} 則"
 
-                        if "gemini" in used_model.lower():
+                        if is_local_model_mode:
+                            footer_model_text = f"> -# 🤖 以上訊息由本地模型「{used_model}」驅動。\n> -# 💡 使用「`/本地模型`」以嘗試使用此模型。"
+                        elif "gemini" in used_model.lower():
                             footer_model_text = f"> -# 🤖 以上訊息由業界領先的 Google Gemini AI 大型語言模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
                         else:
                             footer_model_text = f"> -# 🤖 以上訊息由 Google Gemma 開放權重模型「{used_model}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試存取更聰明的模型。"
