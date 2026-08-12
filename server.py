@@ -59,6 +59,7 @@ import io
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from contextlib import redirect_stdout
+import signal
 
 # ==========================================
 #              設定與環境 (FUNCTIONS)
@@ -673,29 +674,31 @@ async def run_ai_summary(client, settings, secrets):
 
                         generated_text = None
                         used_model_name = None
-                        
-                        ai_client = genai.Client(api_key=gemini_key)
-                        prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
 
-                        print(final_messages_str)
-                        
-                        for model_name in param_model_list:
-                            print(f"   🔄 嘗試模型: {model_name}...")
-                            try:
-                                response = ai_client.models.generate_content(
-                                    model=model_name,
-                                    contents=prompt,
-                                    config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
-                                )
-                                if response.text:
-                                    generated_text = response.text
-                                    used_model_name = model_name
-                                    print(f"   ✅ 模型 {model_name} 成功回應")
-                                    print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
-                                    break
-                            except Exception as e:
-                                print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
-                                continue
+                        ai_client = genai.Client(api_key=gemini_key)
+                        try:
+                            prompt = f"請用繁體中文總結以下聊天內容\n{settings['GEMINI_SUMMARY_FORMAT']}\n\n{final_messages_str}"
+                            print(final_messages_str)
+
+                            for model_name in param_model_list:
+                                print(f"   🔄 嘗試模型: {model_name}...")
+                                try:
+                                    response = ai_client.models.generate_content(
+                                        model=model_name,
+                                        contents=prompt,
+                                        config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
+                                    )
+                                    if response.text:
+                                        generated_text = response.text
+                                        used_model_name = model_name
+                                        print(f"   ✅ 模型 {model_name} 成功回應")
+                                        print(f"Gemini 回應:\n{response.model_dump_json(indent=2)}")
+                                        break
+                                except Exception as e:
+                                    print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                                    continue
+                        finally:
+                            ai_client.close()
 
                         if generated_text and used_model_name:
                             start_str = target_time_ago.strftime('%Y年%m月%d日 %A %H:%M')
@@ -1019,9 +1022,10 @@ async def run_daily_ai_summary(client, settings, secrets):
         
         generated_text = None
         used_model_name = None
-        
+
         ai_client = genai.Client(api_key=gemini_key)
-        prompt = f"""請用繁體中文彙整以下多則「時段重點摘要」，產出一份完整的「{yesterday_str} 每日總結」。
+        try:
+            prompt = f"""請用繁體中文彙整以下多則「時段重點摘要」，產出一份完整的「{yesterday_str} 每日總結」。
 依照以下md格式對各頻道總結，並且適時使用換行幫助閱讀，盡量不要省略成員名(以暱稱為主)，不要多餘文字。如果有人提到何時要做什麼事，也請一併列出。必須認真思考。如果是深夜到凌晨的資料，請確認是否有混到隔天資料以免錯亂
 
 ## [頻道名]
@@ -1036,22 +1040,24 @@ async def run_daily_ai_summary(client, settings, secrets):
 
 {combined_text}"""
 
-        for model_name in param_model_list:
-            print(f"   🔄 嘗試模型: {model_name}...")
-            try:
-                response = ai_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
-                )
-                if response.text:
-                    generated_text = response.text
-                    used_model_name = model_name
-                    print(f"   ✅ 模型 {model_name} 成功回應")
-                    break
-            except Exception as e:
-                print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
-                continue
+            for model_name in param_model_list:
+                print(f"   🔄 嘗試模型: {model_name}...")
+                try:
+                    response = ai_client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(max_output_tokens=settings["GEMINI_TOKEN_LIMIT"])
+                    )
+                    if response.text:
+                        generated_text = response.text
+                        used_model_name = model_name
+                        print(f"   ✅ 模型 {model_name} 成功回應")
+                        break
+                except Exception as e:
+                    print(f"   ⚠️ 模型 {model_name} 失敗: {e}")
+                    continue
+        finally:
+            ai_client.close()
         
         if generated_text and used_model_name:
             if "gemini" in used_model_name.lower():
@@ -1558,11 +1564,32 @@ if __name__ == "__main__":
     if not secrets_data['TOKEN']:
         print("❌ 無法執行：缺少 TOKEN")
     else:
-        # 啟動機器人
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.reactions = True
-        intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
-        
-        client = MyClient(settings=settings_data, secrets=secrets_data, intents=intents)
-        client.run(secrets_data['TOKEN'])
+        async def main():
+            # 啟動機器人
+            intents = discord.Intents.default()
+            intents.message_content = True
+            intents.reactions = True
+            intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
+
+            client = MyClient(settings=settings_data, secrets=secrets_data, intents=intents)
+            try:
+                await client.connect()
+            finally:
+                await client.close()
+
+        # 針對 crontab / 排程環境：註冊信號處理，確保收到 SIGTERM/SIGINT 時強制退出
+        # (on_ready 結束後 bot 會自己 close()，這裡只處理掛起或外部 kill 的情況)
+        def _shutdown_handler():
+            print("\n⚠️ 收到退出信號，強制關閉...")
+            os._exit(0)
+
+        try:
+            signal.signal(signal.SIGTERM, lambda *a: _shutdown_handler())
+        except (OSError, AttributeError):
+            pass
+        try:
+            signal.signal(signal.SIGINT, lambda *a: _shutdown_handler())
+        except (OSError, AttributeError):
+            pass
+
+        asyncio.run(main())
