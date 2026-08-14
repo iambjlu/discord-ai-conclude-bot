@@ -247,6 +247,16 @@ class TaggedResponseBot(discord.Client):
             )
             await target_message.channel.send(welcome_msg)
 
+    @staticmethod
+    async def safe_reply(message, content, **kwargs):
+        """回覆訊息，若原始訊息已被刪除 (Unknown message) 則改用一般傳送"""
+        try:
+            return await message.reply(content, **kwargs)
+        except discord.HTTPException as e:
+            if e.code == 50035:
+                return await message.channel.send(content, **kwargs)
+            raise
+
     async def on_message(self, message):
         # 1. 忽略自己的訊息
         if message.author == self.user:
@@ -281,7 +291,7 @@ class TaggedResponseBot(discord.Client):
                 print(f"🚀 偵測到關鍵字 '{self.settings.get('EXEC_COMMAND_KEYWORD')}'，準備執行更新並重啟")
                 try:
                     # 使用 reply 告知使用者，然後直接執行
-                    await message.reply(f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n> -# 🤖 提示：你可以提及我並寫上「`{self.settings.get('EXEC_COMMAND_KEYWORD')}`」來檢查更新並重啟機器人")
+                    await self.safe_reply(message, f"### ⚙️ 機器人正在檢查 OTA 更新並重新啟動，請稍候。\n如果有可用更新會立即安裝。\n> -# 🤖 提示：你可以提及我並寫上「`{self.settings.get('EXEC_COMMAND_KEYWORD')}`」來檢查更新並重啟機器人")
                     
                     # 🚀 重要：先優雅地關閉 Bot 連線，避免 Gateway 噴錯
                     print("🔄 正在關閉 Discord 連線並準備重啟...")
@@ -298,7 +308,7 @@ class TaggedResponseBot(discord.Client):
                     return
                 except Exception as e:
                     print(f"❌ 更新或重啟失敗: {e}")
-                    await message.reply(f"❌ 更新或重啟失敗: {e}")
+                    await self.safe_reply(message, f"❌ 更新或重啟失敗: {e}")
                     return
 
             # 判斷是否啟動本地模型模式
@@ -375,7 +385,7 @@ class TaggedResponseBot(discord.Client):
 
                         # 若還是沒圖，報錯並結束
                         if not target_image_url:
-                            await message.reply("❓ 找不到圖片。請直接上傳圖片並附帶指令，或是回覆一張有圖片的訊息。")
+                            await self.safe_reply(message, "❓ 找不到圖片。請直接上傳圖片並附帶指令，或是回覆一張有圖片的訊息。")
                             return
 
                         print(f"   🖼️ 目標圖片網址: {target_image_url}")
@@ -429,7 +439,7 @@ class TaggedResponseBot(discord.Client):
                         # 優先順序：/本地模型 > /聰明模型 > 一般模式
                         if is_local_model_mode:
                             if not self.local_ai_client:
-                                await message.reply("❌ 無法辨識圖片：本地 AI 服務未設定或初始化失敗。")
+                                await self.safe_reply(message, "❌ 無法辨識圖片：本地 AI 服務未設定或初始化失敗。")
                                 return
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
@@ -484,7 +494,7 @@ class TaggedResponseBot(discord.Client):
                                 f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                                 f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
                             )
-                            await message.reply(reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
+                            await self.safe_reply(message, reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                             print("   ✅ 本地模型圖片辨識完成並回覆")
                         else:
                             # === 使用雲端 Gemini 模型 ===
@@ -524,14 +534,14 @@ class TaggedResponseBot(discord.Client):
                                     f"> -# 📖 多模態模式回應內容不會參考網路資料。\n"
                                     f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
                                 )
-                                await message.reply(response.text + footer, allowed_mentions=discord.AllowedMentions.none())
+                                await self.safe_reply(message, response.text + footer, allowed_mentions=discord.AllowedMentions.none())
                                 print("   ✅ 圖片辨識完成並回覆")
                             else:
-                                await message.reply("🤖 模型看完了圖片，但沒有回傳任何文字描述。")
+                                await self.safe_reply(message, "🤖 模型看完了圖片，但沒有回傳任何文字描述。")
 
                     except Exception as e:
                         print(f"❌ 圖片辨識失敗: {e}")
-                        await message.reply(f"❌ 圖片辨識發生錯誤: {e}")
+                        await self.safe_reply(message, f"❌ 圖片辨識發生錯誤: {e}")
                 
                 return # 結束，不繼續執行下方的聊天邏輯
 
@@ -779,7 +789,7 @@ class TaggedResponseBot(discord.Client):
 
                     # 5. 呼叫 AI 模型
                     if not self.genai_client and not self.local_ai_client:
-                        await message.reply("❌ 無法回應：未設定任何 AI 服務。")
+                        await self.safe_reply(message, "❌ 無法回應：未設定任何 AI 服務。")
                         return
 
                     # 決定 prompt 後綴 (優先使用回覆參照，若無則使用上一句)
@@ -796,7 +806,7 @@ class TaggedResponseBot(discord.Client):
                     if is_local_model_mode:
                         # === 本地模型模式（支援圖片辨識）===
                         if not self.local_ai_client:
-                            await message.reply("❌ 無法回應：本地 AI 服務未設定或初始化失敗。")
+                            await self.safe_reply(message, "❌ 無法回應：本地 AI 服務未設定或初始化失敗。")
                             return
 
                         model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
@@ -987,7 +997,7 @@ class TaggedResponseBot(discord.Client):
                                 footer += f"\n> -# 🖼️ 本地模型不支援或已在後台關閉圖片辨識功能"
                         else:
                             footer += f"\n> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識"
-                        await message.reply(reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
+                        await self.safe_reply(message, reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                         print("   ✅ 已傳送回應")
                     else:
                         if last_error:
@@ -1000,7 +1010,7 @@ class TaggedResponseBot(discord.Client):
                                      "你們可以一分鐘後或是明天重試看看嗎🥺\n\n"
                                      f"```json\n{error_str}\n```"
                                  )
-                                 await message.reply(wait_msg)
+                                 await self.safe_reply(message, wait_msg)
                              elif "503" in error_str or "Service Unavailable" in error_str:
                                  wait_msg = (
                                      "# ⚠️ 模型發生錯誤\n"
@@ -1008,15 +1018,15 @@ class TaggedResponseBot(discord.Client):
                                      "你們可能要重試一下🥺\n"
                                      f"```json\n{error_str}\n```"
                                  )
-                                 await message.reply(wait_msg)
+                                 await self.safe_reply(message, wait_msg)
                              else:
-                                 await message.reply(f"# ⚠️ 模型發生錯誤\n```json\n{error_str}\n```")
+                                 await self.safe_reply(message, f"# ⚠️ 模型發生錯誤\n```json\n{error_str}\n```")
                         else:
-                             await message.reply("🤖 模型未產生任何回應。")
+                             await self.safe_reply(message, "🤖 模型未產生任何回應。")
 
                 except Exception as e:
                     print(f"❌ 處理訊息時發生錯誤: {e}")
-                    await message.reply(f"❌ 發生錯誤: {str(e)}")
+                    await self.safe_reply(message, f"❌ 發生錯誤: {str(e)}")
 
 # 程式進入點
 if __name__ == "__main__":
