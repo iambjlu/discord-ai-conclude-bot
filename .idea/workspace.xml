@@ -4,7 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2764344e-a518-44c0-ab07-2c0261bf22c6" name="Changes" comment="">
+    <list default="true" id="2764344e-a518-44c0-ab07-2c0261bf22c6" name="Changes" comment="修復內容                                                                                                                                                             &#10;                                                                                                                                                                       &#10;  問題根因：message.reply() 在原始訊息已被刪除（或在某些情況下無法解析）時，Discord API 會回傳 400 Bad Request: Unknown                                                &#10;  message，導致例外被拋出，而例外處理程式碼又再次呼叫 message.reply() 造成連鎖失敗。                                                                                   &#10;                                                                                                                                                                       &#10;  在 tagged_reply.py:250 新增了 safe_reply 靜態方法：先嘗試 message.reply()，若捕捉到錯誤碼 50035（Unknown message）就自動改用 message.channel.send()                  &#10;  補發訊息，不會再拋例外中斷流程。                                                                                                                                     &#10;                                                                                                                                                                       &#10;  已將檔案中所有的 message.reply(...) 呼叫（共 16 處，涵蓋 AI 摘要回覆、圖片辨識回覆、錯誤訊息等）替換為 self.safe_reply(message, ...)。">
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -34,9 +35,11 @@
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cidr.known.project.marker": "true",
-    "com.google.cloudcode.ide_session_index": "20260812_0002",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.google.cloudcode.ide_session_index": "20260814_0001",
     "dart.analysis.tool.window.visible": "false",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
@@ -61,7 +64,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.27397.103" />
+        <option value="bundled-jdk-30f59d01ecdd-37e91769500f-intellij.indexing.shared.core-IU-261.25134.95" />
       </set>
     </attachedChunks>
   </component>
@@ -76,6 +79,8 @@
       <workItem from="1785283584971" duration="3812000" />
       <workItem from="1786502890868" duration="98000" />
       <workItem from="1786512397106" duration="5974000" />
+      <workItem from="1786686615786" duration="176000" />
+      <workItem from="1786788429508" duration="19000" />
     </task>
     <task id="LOCAL-00001" summary="model update">
       <option name="closed" value="true" />
@@ -109,7 +114,15 @@
       <option name="project" value="LOCAL" />
       <updated>1786515066952</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="修復內容                                                                                                                                                             &#10;                                                                                                                                                                       &#10;  問題根因：message.reply() 在原始訊息已被刪除（或在某些情況下無法解析）時，Discord API 會回傳 400 Bad Request: Unknown                                                &#10;  message，導致例外被拋出，而例外處理程式碼又再次呼叫 message.reply() 造成連鎖失敗。                                                                                   &#10;                                                                                                                                                                       &#10;  在 tagged_reply.py:250 新增了 safe_reply 靜態方法：先嘗試 message.reply()，若捕捉到錯誤碼 50035（Unknown message）就自動改用 message.channel.send()                  &#10;  補發訊息，不會再拋例外中斷流程。                                                                                                                                     &#10;                                                                                                                                                                       &#10;  已將檔案中所有的 message.reply(...) 呼叫（共 16 處，涵蓋 AI 摘要回覆、圖片辨識回覆、錯誤訊息等）替換為 self.safe_reply(message, ...)。">
+      <option name="closed" value="true" />
+      <created>1786686779254</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1786686779254</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -119,7 +132,8 @@
     <MESSAGE value="model update" />
     <MESSAGE value="weather mode update" />
     <MESSAGE value="added local ai model support" />
-    <option name="LAST_COMMIT_MESSAGE" value="added local ai model support" />
+    <MESSAGE value="修復內容                                                                                                                                                             &#10;                                                                                                                                                                       &#10;  問題根因：message.reply() 在原始訊息已被刪除（或在某些情況下無法解析）時，Discord API 會回傳 400 Bad Request: Unknown                                                &#10;  message，導致例外被拋出，而例外處理程式碼又再次呼叫 message.reply() 造成連鎖失敗。                                                                                   &#10;                                                                                                                                                                       &#10;  在 tagged_reply.py:250 新增了 safe_reply 靜態方法：先嘗試 message.reply()，若捕捉到錯誤碼 50035（Unknown message）就自動改用 message.channel.send()                  &#10;  補發訊息，不會再拋例外中斷流程。                                                                                                                                     &#10;                                                                                                                                                                       &#10;  已將檔案中所有的 message.reply(...) 呼叫（共 16 處，涵蓋 AI 摘要回覆、圖片辨識回覆、錯誤訊息等）替換為 self.safe_reply(message, ...)。" />
+    <option name="LAST_COMMIT_MESSAGE" value="修復內容                                                                                                                                                             &#10;                                                                                                                                                                       &#10;  問題根因：message.reply() 在原始訊息已被刪除（或在某些情況下無法解析）時，Discord API 會回傳 400 Bad Request: Unknown                                                &#10;  message，導致例外被拋出，而例外處理程式碼又再次呼叫 message.reply() 造成連鎖失敗。                                                                                   &#10;                                                                                                                                                                       &#10;  在 tagged_reply.py:250 新增了 safe_reply 靜態方法：先嘗試 message.reply()，若捕捉到錯誤碼 50035（Unknown message）就自動改用 message.channel.send()                  &#10;  補發訊息，不會再拋例外中斷流程。                                                                                                                                     &#10;                                                                                                                                                                       &#10;  已將檔案中所有的 message.reply(...) 呼叫（共 16 處，涵蓋 AI 摘要回覆、圖片辨識回覆、錯誤訊息等）替換為 self.safe_reply(message, ...)。" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

@@ -85,7 +85,7 @@ def get_settings():
         "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
         "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-3.5-flash-lite","gemini-2.5-flash"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemini-3.5-flash-lite"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -343,6 +343,36 @@ class TaggedResponseBot(discord.Client):
                             local_image_urls.append(att.url)
                     if local_image_urls:
                         print(f"🖼️ 本地模型偵測到 {len(local_image_urls)} 張圖片: {local_image_urls}")
+
+            # ── TXT 附件偵測（讀取文字檔內容並注入 prompt，雲端與本地模型皆適用）──
+            txt_attachment_context = ""
+            target_for_txt: discord.Message | None = None
+            if message.attachments:
+                target_for_txt = message
+            elif message.reference and message.reference.message_id:
+                try:
+                    target_for_txt = message.reference.resolved or await message.channel.fetch_message(message.reference.message_id)
+                except Exception:
+                    pass
+
+            if target_for_txt:
+                txt_max_chars = self.settings.get("TXT_ATTACHMENT_MAX_CHARS", 8000)
+                txt_attachment_texts: list[str] = []
+                for att in target_for_txt.attachments:
+                    is_txt = (att.content_type and "text/plain" in att.content_type) or att.filename.lower().endswith(".txt")
+                    if not is_txt:
+                        continue
+                    try:
+                        raw = await att.read()
+                        text = raw.decode("utf-8", errors="ignore")
+                        if len(text) > txt_max_chars:
+                            text = text[:txt_max_chars] + "\n...(內容過長，已截斷)"
+                        txt_attachment_texts.append(f"[附件檔案: {att.filename}]\n{text}")
+                        print(f"📄 讀取到文字附件: {att.filename} ({len(text)} 字元)")
+                    except Exception as e:
+                        print(f"⚠️ 讀取文字附件失敗: {att.filename} - {e}")
+                if txt_attachment_texts:
+                    txt_attachment_context = "\n\n" + "\n\n".join(txt_attachment_texts)
 
             if is_local_model_mode:
                 print(f"🏠 偵測到本地模型關鍵字: {local_keywords}")
@@ -820,7 +850,7 @@ class TaggedResponseBot(discord.Client):
                             msg_limit=iter_limit_display,
                             context_str=iter_context_str,
                             u_name=u_name,
-                            content_clean=content_clean + final_suffix,
+                            content_clean=content_clean + final_suffix + txt_attachment_context,
                             think_or_not=iter_think
                         )
 
@@ -931,7 +961,7 @@ class TaggedResponseBot(discord.Client):
                                 msg_limit=iter_limit_display,
                                 context_str=iter_context_str,
                                 u_name=u_name,
-                                content_clean=content_clean + final_suffix,
+                                content_clean=content_clean + final_suffix + txt_attachment_context,
                                 think_or_not=iter_think
                             )
 
