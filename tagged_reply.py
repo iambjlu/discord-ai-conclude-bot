@@ -94,6 +94,9 @@ def get_settings():
         "LOCAL_TOTAL_MSG_LIMIT": 150,
         "LOCAL_MAX_MSG_LENGTH": 150,
         "LOCAL_AI_IMAGE_SUPPORT": True,   # 本地模型是否支援圖片辨識 (可由環境變數 LOCAL_AI_IMAGE_SUPPORT 覆蓋)
+        "TXT_ATTACHMENT_MAX_CHARS": 20000,     # 標注/回覆訊息的 txt 附件，完整讀取上限
+        "TXT_ATTACHMENT_CONTEXT_CHARS": 100,   # 非標注/回覆(一般歷史)訊息的 txt 附件，僅預覽這麼多字
+        "HTML_ATTACHMENT_MAX_CHARS": 20000,    # 標注/回覆訊息的 html 附件，完整讀取上限
     }
 
 def get_secrets():
@@ -344,7 +347,9 @@ class TaggedResponseBot(discord.Client):
                     if local_image_urls:
                         print(f"🖼️ 本地模型偵測到 {len(local_image_urls)} 張圖片: {local_image_urls}")
 
-            # ── TXT 附件偵測（讀取文字檔內容並注入 prompt，雲端與本地模型皆適用）──
+            # ── TXT / HTML 附件偵測（讀取文字檔內容並注入 prompt，雲端與本地模型皆適用）──
+            # 標注或回覆該則訊息：完整讀取 (txt / html)
+            # 一般歷史訊息 (未標注或回覆)：txt 僅預覽少量字元，html 不讀取
             txt_attachment_context = ""
             target_for_txt: discord.Message | None = None
             if message.attachments:
@@ -355,22 +360,32 @@ class TaggedResponseBot(discord.Client):
                 except Exception:
                     pass
 
+            def _is_txt_attachment(att) -> bool:
+                return (att.content_type and "text/plain" in att.content_type) or att.filename.lower().endswith(".txt")
+
+            def _is_html_attachment(att) -> bool:
+                return (att.content_type and "text/html" in att.content_type) or att.filename.lower().endswith((".html", ".htm"))
+
             if target_for_txt:
-                txt_max_chars = self.settings.get("TXT_ATTACHMENT_MAX_CHARS", 8000)
+                txt_max_chars = self.settings.get("TXT_ATTACHMENT_MAX_CHARS", 20000)
+                html_max_chars = self.settings.get("HTML_ATTACHMENT_MAX_CHARS", 20000)
                 txt_attachment_texts: list[str] = []
                 for att in target_for_txt.attachments:
-                    is_txt = (att.content_type and "text/plain" in att.content_type) or att.filename.lower().endswith(".txt")
-                    if not is_txt:
+                    if _is_txt_attachment(att):
+                        max_chars = txt_max_chars
+                    elif _is_html_attachment(att):
+                        max_chars = html_max_chars
+                    else:
                         continue
                     try:
                         raw = await att.read()
                         text = raw.decode("utf-8", errors="ignore")
-                        if len(text) > txt_max_chars:
-                            text = text[:txt_max_chars] + "\n...(內容過長，已截斷)"
+                        if len(text) > max_chars:
+                            text = text[:max_chars] + "\n...(內容過長，已截斷)"
                         txt_attachment_texts.append(f"[附件檔案: {att.filename}]\n{text}")
-                        print(f"📄 讀取到文字附件: {att.filename} ({len(text)} 字元)")
+                        print(f"📄 讀取到文字/HTML附件: {att.filename} ({len(text)} 字元)")
                     except Exception as e:
-                        print(f"⚠️ 讀取文字附件失敗: {att.filename} - {e}")
+                        print(f"⚠️ 讀取文字/HTML附件失敗: {att.filename} - {e}")
                 if txt_attachment_texts:
                     txt_attachment_context = "\n\n" + "\n\n".join(txt_attachment_texts)
 
@@ -384,38 +399,44 @@ class TaggedResponseBot(discord.Client):
                 print(f"🧠 偵測到 Smarter Mode 關鍵字: {smarter_keywords}")
 
             # ---------------------------------------------------------
-            # 新增: /辨識圖片 指令處理
+            # 圖片辨識：
+            # - 標注我且該則訊息本身含圖片 → 自動觸發，不需指令
+            # - 回覆一則含圖片的訊息 → 僅在使用 /辨識圖片 指令時才觸發
             # ---------------------------------------------------------
-            if "/辨識圖片" in content_clean:
-                print(f"📸 收到圖片辨識指令: {message.author} 在 #{message.channel}")
-                
+            has_image_command = "/辨識圖片" in content_clean
+            image_from_message = None
+            image_from_reply = None
+
+            # Case 1: 檢查當前訊息是否有附件
+            if message.attachments:
+                # 找第一個是圖片的附件
+                for att in message.attachments:
+                    if att.content_type and "image" in att.content_type:
+                        image_from_message = att.url
+                        break
+
+            # Case 2: 檢查是否有回覆，並從回覆中找附件 (僅在有 /辨識圖片 指令時才會被採用)
+            if not image_from_message and message.reference and message.reference.message_id:
+                try:
+                    ref_msg_obj = message.reference.resolved or await message.channel.fetch_message(message.reference.message_id)
+                    if ref_msg_obj and ref_msg_obj.attachments:
+                        for att in ref_msg_obj.attachments:
+                            if att.content_type and "image" in att.content_type:
+                                image_from_reply = att.url
+                                break
+                except Exception as e:
+                    print(f"   ⚠️ 無法讀取回覆的圖片訊息: {e}")
+
+            if image_from_message or has_image_command:
+                print(f"📸 收到圖片辨識請求: {message.author} 在 #{message.channel}")
+
                 async with message.channel.typing():
                     try:
-                        target_image_url = None
-                        
-                        # Case 1: 檢查當前訊息是否有附件
-                        if message.attachments:
-                            # 找第一個是圖片的附件
-                            for att in message.attachments:
-                                if att.content_type and "image" in att.content_type:
-                                    target_image_url = att.url
-                                    break
-                        
-                        # Case 2: 如果沒有，檢查是否有回覆，並從回覆中找附件
-                        if not target_image_url and message.reference and message.reference.message_id:
-                            try:
-                                ref_msg_obj = await message.channel.fetch_message(message.reference.message_id)
-                                if ref_msg_obj.attachments:
-                                    for att in ref_msg_obj.attachments:
-                                        if att.content_type and "image" in att.content_type:
-                                            target_image_url = att.url
-                                            break
-                            except Exception as e:
-                                print(f"   ⚠️ 無法讀取回覆的圖片訊息: {e}")
+                        target_image_url = image_from_message or (image_from_reply if has_image_command else None)
 
                         # 若還是沒圖，報錯並結束
                         if not target_image_url:
-                            await self.safe_reply(message, "❓ 找不到圖片。請直接上傳圖片並附帶指令，或是回覆一張有圖片的訊息。")
+                            await self.safe_reply(message, "❓ 找不到圖片。請直接上傳圖片並標注我，或是使用「`/辨識圖片`」指令並回覆一張有圖片的訊息。")
                             return
 
                         print(f"   🖼️ 目標圖片網址: {target_image_url}")
@@ -522,7 +543,7 @@ class TaggedResponseBot(discord.Client):
                                 f"{footer_model_text}\n"
                                 f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)，以及少量對話歷史({history_limit}則)\n"
                                 f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
-                                f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
+                                f"> -# 🖼️ 標注+附圖自動辨識；回覆圖片需加「`/辨識圖片`」"
                             )
                             await self.safe_reply(message, reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                             print("   ✅ 本地模型圖片辨識完成並回覆")
@@ -562,7 +583,7 @@ class TaggedResponseBot(discord.Client):
                                     f"> -# 💬 使用多模態模型時，回應內容只參考發出指令的該則訊息(和回覆)，以及少量對話歷史({history_limit}則)\n"
                                     f"> -# 🤓 AI 內容僅供參考，不代表本社群立場，敬請核實。\n"
                                     f"> -# 📖 多模態模式回應內容不會參考網路資料。\n"
-                                    f"> -# 🖼️ 優先辨識回覆的圖片，若回覆沒有圖片則辨識訊息附件。"
+                                    f"> -# 🖼️ 標注+附圖自動辨識；回覆圖片需加「`/辨識圖片`」"
                                 )
                                 await self.safe_reply(message, response.text + footer, allowed_mentions=discord.AllowedMentions.none())
                                 print("   ✅ 圖片辨識完成並回覆")
@@ -667,9 +688,21 @@ class TaggedResponseBot(discord.Client):
                                 if len(h_content) > msg_max_length_limit:
                                     h_content = h_content[:msg_max_length_limit] + "..."
                                 
-                                if h_msg.attachments: 
+                                if h_msg.attachments:
                                     show_att = self.settings.get("SHOW_ATTACHMENTS", False)
                                     h_content += " (附件)" if not show_att else f" (附件 {[a.url for a in h_msg.attachments]})"
+                                    # 非標注/回覆目標訊息的 txt 附件：僅預覽少量字元 (html 不讀取)
+                                    if not (target_for_txt and h_msg.id == target_for_txt.id):
+                                        preview_chars = self.settings.get("TXT_ATTACHMENT_CONTEXT_CHARS", 100)
+                                        for att in h_msg.attachments:
+                                            if not _is_txt_attachment(att):
+                                                continue
+                                            try:
+                                                raw = await att.read()
+                                                preview = raw.decode("utf-8", errors="ignore")[:preview_chars]
+                                                h_content += f" [txt預覽: {preview}]"
+                                            except Exception:
+                                                pass
 
                                 ref_line = f"{h_author}@{h_time}: {h_content}"
                                 all_collected_msgs[h_msg.id] = (h_msg.created_at, ref_line)
@@ -784,6 +817,18 @@ class TaggedResponseBot(discord.Client):
                         if msg.attachments:
                             show_att = self.settings.get("SHOW_ATTACHMENTS", False)
                             msg_line += " (附件)" if not show_att else f" (附件 {[a.url for a in msg.attachments]})"
+                            # 非標注/回覆目標訊息的 txt 附件：僅預覽少量字元 (html 不讀取)
+                            if not (target_for_txt and msg.id == target_for_txt.id):
+                                preview_chars = self.settings.get("TXT_ATTACHMENT_CONTEXT_CHARS", 100)
+                                for att in msg.attachments:
+                                    if not _is_txt_attachment(att):
+                                        continue
+                                    try:
+                                        raw = await att.read()
+                                        preview = raw.decode("utf-8", errors="ignore")[:preview_chars]
+                                        msg_line += f" [txt預覽: {preview}]"
+                                    except Exception:
+                                        pass
 
                         # 存入 dict，若 id 重複則會覆蓋 (達到去重效果，雖然內容應該一樣)
                         all_collected_msgs[msg.id] = (msg.created_at, msg_line)
@@ -840,7 +885,7 @@ class TaggedResponseBot(discord.Client):
                             return
 
                         model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
-                        iter_token_limit = self.settings.get("LOCAL_AI_MAX_TOKENS", 80000)
+                        iter_token_limit = self.settings.get("LOCAL_TOKEN_LIMIT", 120000)
                         iter_temperature = self.settings.get("LOCAL_AI_TEMPERATURE", 0.7)
                         iter_context_str = full_context_str
                         iter_limit_display = msg_limit
@@ -1022,11 +1067,11 @@ class TaggedResponseBot(discord.Client):
                         # 根據圖片支援狀態顯示不同 footer
                         if is_local_model_mode:
                             if self.local_image_support:
-                                footer += f"\n> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識"
+                                footer += f"\n> -# 🖼️ 標注+附圖自動辨識；回覆圖片需加「`/辨識圖片`」"
                             else:
                                 footer += f"\n> -# 🖼️ 本地模型不支援或已在後台關閉圖片辨識功能"
                         else:
-                            footer += f"\n> -# 🖼️ 使用「`/辨識圖片`」以存取多模態模型對圖片進行辨識"
+                            footer += f"\n> -# 🖼️ 標注+附圖自動辨識；回覆圖片需加「`/辨識圖片`」"
                         await self.safe_reply(message, reply_content + footer, allowed_mentions=discord.AllowedMentions.none())
                         print("   ✅ 已傳送回應")
                     else:
