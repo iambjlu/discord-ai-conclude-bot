@@ -251,14 +251,40 @@ class TaggedResponseBot(discord.Client):
             await target_message.channel.send(welcome_msg)
 
     @staticmethod
+    def _split_content(content, limit=2000):
+        """將過長的訊息內容切成多段，優先在換行處切分"""
+        if len(content) <= limit:
+            return [content]
+
+        chunks = []
+        remaining = content
+        while len(remaining) > limit:
+            split_at = remaining.rfind('\n', 0, limit)
+            if split_at <= 0:
+                split_at = limit
+            chunks.append(remaining[:split_at])
+            remaining = remaining[split_at:].lstrip('\n')
+        if remaining:
+            chunks.append(remaining)
+        return chunks
+
+    @staticmethod
     async def safe_reply(message, content, **kwargs):
-        """回覆訊息，若原始訊息已被刪除 (Unknown message) 則改用一般傳送"""
+        """回覆訊息，若原始訊息已被刪除 (Unknown message) 則改用一般傳送；內容過長時自動切分成多則訊息"""
+        chunks = TaggedResponseBot._split_content(content)
+
         try:
-            return await message.reply(content, **kwargs)
+            first_result = await message.reply(chunks[0], **kwargs)
         except discord.HTTPException as e:
             if e.code == 50035:
-                return await message.channel.send(content, **kwargs)
-            raise
+                first_result = await message.channel.send(chunks[0], **kwargs)
+            else:
+                raise
+
+        for chunk in chunks[1:]:
+            await message.channel.send(chunk, **kwargs)
+
+        return first_result
 
     async def on_message(self, message):
         # 1. 忽略自己的訊息
