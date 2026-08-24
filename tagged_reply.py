@@ -943,10 +943,20 @@ class TaggedResponseBot(discord.Client):
                         try:
                             # ── 建構 messages（純文字 或 多模態）──
                             if local_image_urls:
-                                # 多模態格式：text + image_url
+                                # 多模態格式：text + image_url（OpenAI Compatible API 需要 base64 data URI，不支援遠端網址）
                                 content_parts: list[dict] = [{"type": "text", "text": prompt_text}]
-                                for img_url in local_image_urls:
-                                    content_parts.append({"type": "image_url", "image_url": {"url": img_url}})
+                                async with aiohttp.ClientSession() as session:
+                                    for img_url in local_image_urls:
+                                        mime_type = "image/jpeg"
+                                        lower_url = img_url.lower()
+                                        if ".png" in lower_url: mime_type = "image/png"
+                                        elif ".webp" in lower_url: mime_type = "image/webp"
+
+                                        async with session.get(img_url) as img_resp:
+                                            img_bytes = await img_resp.read()
+                                            b64 = base64.b64encode(img_bytes).decode('utf-8')
+                                            data_url = f"data:{mime_type};base64,{b64}"
+                                        content_parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
                                 api_messages = [{"role": "user", "content": content_parts}]
                                 print(f"   📸 多模態模式：附加 {len(local_image_urls)} 張圖片")
                             else:
