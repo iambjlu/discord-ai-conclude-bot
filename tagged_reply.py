@@ -82,10 +82,10 @@ def get_settings():
 
 以下是近期對話歷史（僅供背景參考）：
 {context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
+        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it","gemini-flash-lite-latest"],
         "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemini-3.5-flash-lite"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -174,7 +174,7 @@ class TaggedResponseBot(discord.Client):
         else:
             print("⚠️ 警告: 未設定 LOCAL_AI_SERVER 或 LOCAL_AI_MODEL")
 
-        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])
+        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
 
         # 本地模型圖片支援設定：secrets 可覆蓋 settings 的預設值
@@ -524,7 +524,7 @@ class TaggedResponseBot(discord.Client):
                             model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
                             use_local = False
                         else:
-                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])[0]
+                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])[0]
                             use_local = False
 
                         print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
