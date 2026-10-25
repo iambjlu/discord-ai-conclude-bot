@@ -61,5 +61,5 @@ if [ ! -d "$CORE/browsers" ] && ! ls "$DATA/browsers"/chromium-* >/dev/null 2>&1
 fi
 
 rm -rf "$LOCK"; trap - EXIT
-cd "$DATA"
+cd "$CORE"   # tagged_reply 用相對路徑啟動 hello_msg.py，所以工作目錄要在腳本所在處
 exec "$VENV/bin/python" "$CORE/launch.py" "$@"
