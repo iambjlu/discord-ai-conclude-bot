@@ -9,6 +9,11 @@ struct DiscordBotApp: App {
 
     init() {
         signal(SIGPIPE, SIG_IGN)
+        // 關閉主視窗 → 從 Dock 消失（onDisappear 在 Window 場景關閉時不一定會觸發，所以直接聽視窗事件）
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
+            guard let w = note.object as? NSWindow, w.title == "Discord AI Bot" else { return }
+            DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
+        }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
                                                object: nil, queue: .main) { _ in
             // 由 Timer/Task 裡的 model 不方便取得，所以走全域參考
@@ -64,6 +69,7 @@ struct MenuIcon: View {
                 AppModel.current = model
                 if model.autoStartTagged { model.userStartTagged() }
                 if model.showWindowOnLaunch {
+                    NSApp.setActivationPolicy(.regular)
                     openWindow(id: "main")
                     NSApp.activate(ignoringOtherApps: true)
                 }

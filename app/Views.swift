@@ -46,6 +46,7 @@ struct MenuContent: View {
                 .disabled(server.isRunning)
             Divider()
             Button("開啟主視窗") {
+                NSApp.setActivationPolicy(.regular)
                 openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
             }
             Button("結束") { NSApp.terminate(nil) }
