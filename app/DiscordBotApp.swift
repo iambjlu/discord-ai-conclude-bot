@@ -6,9 +6,16 @@ import SwiftUI
 @main
 struct DiscordBotApp: App {
     @StateObject private var model = AppModel()
+    private static var termSource: DispatchSourceSignal?
 
     init() {
         signal(SIGPIPE, SIG_IGN)
+        // 收到 SIGTERM（pkill、關機等）時也要先收掉子行程，否則 Python 會變成孤兒繼續跑
+        signal(SIGTERM, SIG_IGN)
+        let term = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        term.setEventHandler { NSApp.terminate(nil) }
+        term.resume()
+        Self.termSource = term
         // 關閉主視窗 → 從 Dock 消失（onDisappear 在 Window 場景關閉時不一定會觸發，所以直接聽視窗事件）
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
             guard let w = note.object as? NSWindow, w.title == "Discord AI Bot" else { return }
