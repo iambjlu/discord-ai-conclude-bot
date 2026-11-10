@@ -49,11 +49,11 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 App 進入點與選單列、圖示產生。
 
 ### `core_run.sh` / `launch.py`（打包進 App 的 `core/`）
-`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件、必要時下載 Chromium（有內附 `browsers/` 就直接用）；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本。
+`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件；Chromium 的來源依序為：App 內附的 `browsers/`、系統已安裝的 Google Chrome（`renderer.py` 優先用 `channel="chrome"`，此時不下載）、否則首次下載到 Application Support；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本。
 
 ## 打包
 `./build_app.sh` 以 `swiftc` 編譯並組出 `build/DiscordBot.app`（目前機器架構、macOS 14+、ad-hoc 簽章）。
-`BUNDLE_BROWSERS=1 ./build_app.sh` 會把 `browsers/` 一起內附（約多 500 MB）。
+預設不內附瀏覽器，App 約 1 MB；`BUNDLE_BROWSERS=1 ./build_app.sh` 才會把 `browsers/` 一起內附（約多 500 MB，免首次下載）。
 
 ## 搬家需求
 目標機需有 Python 3.11 以上、登入同一個 iCloud、對 App 執行 `xattr -cr` 解除 Gatekeeper；CPU 架構不同需重新打包；連結截圖另需 Xcode 與 iPad 模擬器。
