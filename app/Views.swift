@@ -186,11 +186,16 @@ struct LogTab: View {
             }
             ScrollViewReader { proxy in
                 ScrollView {
-                    Text(runner.logs.joined(separator: "\n"))
-                        .font(.system(size: 11, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                    // 一行一個 Text 並用 LazyVStack：只排版看得到的行（原本把全部接成單一 Text，開頁會卡）
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(runner.logs.enumerated()), id: \.offset) { _, line in
+                            Text(line.count > 2000 ? String(line.prefix(2000)) + "…" : line)
+                                .font(.system(size: 11, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(8)
                     Color.clear.frame(height: 1).id("end")
                 }
                 .background(Color(nsColor: .textBackgroundColor))
