@@ -10,7 +10,7 @@ command -v swiftc >/dev/null 2>&1 || { echo "找不到 swiftc，請先執行：x
 echo "[build] 編譯（$ARCH, macOS 14+）"
 rm -rf "$OUT"; mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 if ! swiftc -O -swift-version 5 -parse-as-library -target "$ARCH-apple-macos14.0" \
-      app/AppModel.swift app/BotRunner.swift app/DiscordBotApp.swift app/EnvStore.swift app/MemoryUsage.swift app/Views.swift \
+      app/AppModel.swift app/BotRunner.swift app/DiscordBotApp.swift app/EnvStore.swift app/MemoryUsage.swift app/Permissions.swift app/Views.swift \
       -o "$OUT/Contents/MacOS/DiscordBot" 2> app/.build.log; then
   echo "[build] ❌ 編譯失敗："; head -40 app/.build.log; exit 1
 fi
@@ -56,6 +56,8 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>連線到區域網路上的本地 AI 服務（例如 LM Studio、Ollama）。</string>
+  <key>NSBonjourServices</key><array><string>_http._tcp</string><string>_https._tcp</string></array>
 </dict>
 </plist>
 PLIST

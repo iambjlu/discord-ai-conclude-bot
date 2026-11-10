@@ -116,6 +116,23 @@ final class AppModel: ObservableObject {
         return e
     }
 
+    /// bot.env 裡啟用中的 LOCAL_AI_SERVER 位址（用來在要權限時實際連一次）
+    func localAIEndpoint() -> URL? {
+        var enabled = true, server: String?
+        for raw in envText.split(separator: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("#") { continue }
+            if line.hasPrefix("LOCAL_AI_ENABLED=") { enabled = !["false", "0", "no"].contains(line.dropFirst(17).lowercased()) }
+            if line.hasPrefix("LOCAL_AI_SERVER=") { server = String(line.dropFirst(16)).trimmingCharacters(in: .whitespaces) }
+        }
+        guard enabled, let s = server, !s.isEmpty else { return nil }
+        return URL(string: s)
+    }
+
+    func requestPermissions(force: Bool = false) {
+        Permissions.requestIfNeeded(force: force, localAIEndpoint: localAIEndpoint())
+    }
+
     // MARK: - 控制
 
     func startTagged() {

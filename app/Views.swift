@@ -139,6 +139,12 @@ struct StatusTab: View {
                 Text("排程時間點為「小時是間隔倍數」；實際每項功能是否執行，仍由 server.py 內的 *_SCHEDULE_MODULO 設定判斷。")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("權限") {
+                Button("重新要求權限（iCloud、區域網路）") { model.requestPermissions(force: true) }
+                Button("開啟系統設定 › 區域網路") { Permissions.openLocalNetworkSettings() }
+                Text("第一次開啟、或重新打包後第一次開啟，App 會自動把權限要過一遍。連到區網的本地 AI 失敗時，請確認這裡有允許。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("App") {
                 Toggle("開機時自動啟動", isOn: Binding(get: { model.loginItem }, set: { model.setLoginItem($0) }))
                 if let e = model.loginItemError { Text(e).font(.caption).foregroundStyle(.red) }

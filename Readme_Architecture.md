@@ -47,6 +47,9 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 ### `MemoryUsage.swift`
 選單列展開時取樣一次（不即時更新）：用 `ps` 找出 App 的所有子行程，再以 `proc_pid_rusage` 的 `phys_footprint`（與活動監視器相同，不含與系統共用的部分）加總 App 本體與子行程（Python、瀏覽器）的記憶體，顯示在選單列面板。
 
+### `Permissions.swift`
+第一次開啟、或重新打包後第一次開啟時（以執行檔大小＋修改時間作為指紋，存 UserDefaults `permissionsFingerprint`），主動把需要的系統權限要過一遍：讀一次 iCloud Drive 的設定資料夾，並以 Bonjour 瀏覽觸發「區域網路」權限，若 `bot.env` 有啟用的 `LOCAL_AI_SERVER` 也會實際連線一次。`Info.plist` 需有 `NSLocalNetworkUsageDescription` 與 `NSBonjourServices`（由 `build_app.sh` 寫入）。設定頁「權限」區可手動重新要求或開啟系統設定的區域網路頁。臨時簽章每次打包身分都會改變，macOS 會重新詢問權限，所以用指紋判斷是否需要再要一次。
+
 ### `EnvStore.swift`
 `bot.env` 放在 iCloud Drive（`DiscordAIConcludeBot/bot.env`），換電腦登入 iCloud 即可讀到。
 

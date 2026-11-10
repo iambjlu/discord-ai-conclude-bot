@@ -77,6 +77,7 @@ struct MenuIcon: View {
                 guard !handled else { return }
                 handled = true
                 AppModel.current = model
+                model.requestPermissions()      // 第一次開啟／換版本後第一次開啟：先把權限要過一遍
                 if model.autoStartTagged { model.userStartTagged() }
                 if model.showWindowOnLaunch {
                     NSApp.setActivationPolicy(.regular)
