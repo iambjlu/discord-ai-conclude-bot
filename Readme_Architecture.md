@@ -45,7 +45,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 主視窗：狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量。
 
 ### `MemoryUsage.swift`
-選單列展開時取樣一次（不即時更新）：用 `ps` 加總 App 本體與其所有子行程（Python、瀏覽器）的實體記憶體（RSS），顯示在選單列面板。
+選單列展開時取樣一次（不即時更新）：用 `ps` 找出 App 的所有子行程，再以 `proc_pid_rusage` 的 `phys_footprint`（與活動監視器相同，不含與系統共用的部分）加總 App 本體與子行程（Python、瀏覽器）的記憶體，顯示在選單列面板。
 
 ### `EnvStore.swift`
 `bot.env` 放在 iCloud Drive（`DiscordAIConcludeBot/bot.env`），換電腦登入 iCloud 即可讀到。
