@@ -37,6 +37,13 @@ final class AppModel: ObservableObject {
         return fm.fileExists(atPath: "/Applications/\(appName).app")
             || fm.fileExists(atPath: NSHomeDirectory() + "/Applications/\(appName).app")
     }
+    @Published var logMaxLines: Int {
+        didSet {
+            UserDefaults.standard.set(logMaxLines, forKey: "logMaxLines")
+            tagged.trimLogs(); server.trimLogs()
+        }
+    }
+    static let logMaxLinesOptions = [0, 100, 300, 500, 1000, 3000]
     @Published var logToDisk: Bool { didSet { UserDefaults.standard.set(logToDisk, forKey: "logToDisk") } }
     @Published var loginItem: Bool = SMAppService.mainApp.status == .enabled
     @Published var loginItemError: String?
@@ -57,6 +64,7 @@ final class AppModel: ObservableObject {
         minuteOffset = d.object(forKey: "minuteOffset") as? Int ?? 3
         autoStartTagged = d.object(forKey: "autoStartTagged") as? Bool ?? true
         logToDisk = d.bool(forKey: "logToDisk")
+        logMaxLines = d.object(forKey: "logMaxLines") as? Int ?? 500
         browserChoice = d.string(forKey: "browserChoice") ?? "auto"
         showWindowOnLaunch = d.object(forKey: "showWindowOnLaunch") as? Bool ?? true
         AppModel.current = self

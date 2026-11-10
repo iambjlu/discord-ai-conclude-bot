@@ -35,11 +35,11 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 
 ### `BotRunner.swift`
 管理一個 Python 子行程（啟動、停止、常駐型當掉自動重啟、一次性逾時）並收集日誌。
-- 日誌預設只保留在記憶體（最近 1000 行）。
+- 日誌預設只保留在記憶體，最多保留行數可在設定頁調整（UserDefaults `logMaxLines`，選項 0／100／300／500／1000／3000，預設 500，0＝不保留；調小時立即裁剪）。
 - 「把日誌寫入硬碟」開啟（UserDefaults `logToDisk`）時才寫入 `~/Library/Logs/DiscordAIConcludeBot/<id>.log`：檔案持續開著寫入、以位元組計數判斷超過 5 MB 輪替；關閉時不建立資料夾也不開檔。
 
 ### `AppModel.swift`
-兩個 `BotRunner` 的總管、排程計時（每 60 秒檢查，tolerance 20 秒讓系統合併喚醒以省電，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
+兩個 `BotRunner` 的總管、排程計時（每 60 秒檢查，tolerance 20 秒讓系統合併喚醒以省電，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`logMaxLines`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
 
 ### `Views.swift`
 主視窗：狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量。日誌分頁以 `LazyVStack` 一行一個 `Text` 呈現（只排版可見的行；單行超過 2000 字截斷顯示），避免上千行接成單一 `Text` 造成開啟卡頓。

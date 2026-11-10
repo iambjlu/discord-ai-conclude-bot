@@ -151,8 +151,14 @@ struct StatusTab: View {
                 }
                 Text("下次執行排程任務時生效。選擇「未安裝」的瀏覽器時會自動退回其他瀏覽器。")
                     .font(.caption).foregroundStyle(.secondary)
+                Picker("日誌頁最多保留", selection: $model.logMaxLines) {
+                    ForEach(AppModel.logMaxLinesOptions, id: \.self) { n in
+                        Text(n == 0 ? "不保留（日誌頁為空）" : "\(n) 行").tag(n)
+                    }
+                }
+                Text("日誌存在記憶體裡，行數越多越佔記憶體；調小會立刻裁掉舊的。").font(.caption).foregroundStyle(.secondary)
                 Toggle("把日誌寫入硬碟（預設關閉）", isOn: $model.logToDisk)
-                Text("關閉時日誌只保留在記憶體（日誌分頁看得到最近 1000 行，結束 App 就消失），不會寫入 SSD。")
+                Text("關閉時日誌只保留在記憶體（日誌分頁看得到最近幾行，行數可在上方調整，結束 App 就消失），不會寫入 SSD。")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -183,6 +189,9 @@ struct LogTab: View {
                 Button("清除") { runner.clearLogs() }
                 Button("在 Finder 顯示日誌檔") { NSWorkspace.shared.open(BotRunner.logDir) }
                     .disabled(!FileManager.default.fileExists(atPath: BotRunner.logDir.path))
+            }
+            if model.logMaxLines == 0 {
+                Text("目前設定為不保留日誌，可在「狀態」分頁的設定調整。").font(.caption).foregroundStyle(.secondary)
             }
             ScrollViewReader { proxy in
                 ScrollView {

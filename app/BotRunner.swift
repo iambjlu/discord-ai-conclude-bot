@@ -28,7 +28,8 @@ final class BotRunner: ObservableObject, Identifiable {
     private var retryTask: Task<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
     private var envProvider: () -> [String: String] = { [:] }
-    private let maxLines = 1000
+    /// 記憶體中最多保留幾行日誌（設定頁可調；0＝不保留）
+    static var maxLines: Int { UserDefaults.standard.object(forKey: "logMaxLines") as? Int ?? 500 }
     private let logFile: URL
     private var logHandle: FileHandle?
     private var logBytes = 0
@@ -80,6 +81,12 @@ final class BotRunner: ObservableObject, Identifiable {
     }
 
     func clearLogs() { logs.removeAll() }
+
+    /// 上限調小時立刻裁掉多的
+    func trimLogs() {
+        let limit = BotRunner.maxLines
+        if logs.count > limit { logs.removeFirst(logs.count - limit) }
+    }
 
     // MARK: - 內部
 
@@ -163,8 +170,11 @@ final class BotRunner: ObservableObject, Identifiable {
     }
 
     private func append(_ line: String) {
-        logs.append(line)
-        if logs.count > maxLines { logs.removeFirst(logs.count - maxLines) }
+        let limit = BotRunner.maxLines
+        if limit > 0 {
+            logs.append(line)
+            if logs.count > limit { logs.removeFirst(logs.count - limit) }
+        }
         writeToFile(line)
     }
 
