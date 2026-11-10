@@ -250,6 +250,37 @@ BUNDLE_BROWSERS=1 ./build_app.sh    # 連 Chromium 一起內附（約多 500 MB�
 *   App 為臨時簽章。搬到其他 Mac 後若被 Gatekeeper 擋下，執行 `xattr -cr DiscordBot.app`。
 *   要手動刪除 App 下載的 Chromium：退出 App 後 `rm -rf ~/Library/Application\ Support/DiscordAIConcludeBot/browsers`（刪之前確認有 Chrome／Edge／Brave，否則下次啟動會再下載）。
 
+### 第一次使用
+1.  依上面的需求準備好 Python 3.11 以上，並把 `DiscordBot.app` 放到「應用程式」資料夾後開啟。App 會在選單列出現圖示（預設也會開啟主視窗）。
+2.  到主視窗的 **「設定檔」** 分頁。第一次沒有設定檔時，按 **「建立範本」**，App 會在 iCloud Drive 建立 `DiscordAIConcludeBot/bot.env`。
+3.  填入內容後按 **「儲存並重新啟動標注回覆」**（快捷鍵 ⌘S）。欄位與 Python 版的 `.env` 相同：
+    *   必填：`DISCORD_BOT_TOKEN`、`GEMINI_API_KEY`、`SOURCE_CHANNEL_IDS`、`TARGET_CHANNEL_ID`。
+    *   選填：`TARGET_PREVIEW_ID`（連結預覽頻道）、`TARGET_WEATHER_ID`、`WEATHER_KEY`（天氣）、`HELLO_MSG_ID`（系統資訊推播頻道）、`LOCAL_AI_ENABLED`／`LOCAL_AI_SERVER`／`LOCAL_AI_MODEL`／`LOCAL_AI_API_KEY`／`LOCAL_AI_IMAGE_SUPPORT`（本地模型）。
+    *   App 專用（選填）：`BOT_BROWSER`（指定渲染瀏覽器，見下方設定）。
+4.  第一次啟動會自動建立 Python 環境，需要幾分鐘；期間在「日誌」分頁可以看到進度。完成後狀態會變成「運行中」。
+5.  macOS 跳出「區域網路」等權限對話框時按「允許」（見下方「權限」）。
+
+> 排程的間隔與分鐘、渲染瀏覽器、日誌行數這些**由 App 的設定頁控制，不是寫在 bot.env**；各功能的開關與頻率（`*_MODE`、`*_SCHEDULE_MODULO`）則和 Python 版一樣寫在程式內的 `get_settings()`。
+
+### 主視窗
+主視窗最上方是標題「Discord AI Conclude Bot」，下面有三個分頁。選單列圖示的面板可點「開啟主視窗」叫出它；關閉主視窗後 App 仍在選單列運作，Dock 圖示會消失。
+
+#### 狀態
+*   **標注回覆（常駐）**：顯示狀態（運行中／重啟倒數／已停止），可啟動、停止、重新啟動；「App 開啟時自動啟動」開關。手動停止後不會被自動拉起。
+*   **排程任務**：顯示狀態（執行中／等待下次排程／上次執行結果）、下次排程與上次執行時間；可開關「啟用定時排程」、設定「每 N 小時一次」（1～24）與「整點後第 N 分鐘」；「立即執行（依排程判斷）」、「強制執行…」（可單選 AI 總結／每日金句／每日摘要彙整／連結截圖／天氣預報，或全部強制）、「中止」。立即或強制執行前會確認兩次。
+*   **權限**：重新要求權限、開啟系統設定的區域網路頁。
+*   **App**：
+    *   開機自動啟動、開啟 App 時是否顯示主視窗。
+    *   **渲染圖片的瀏覽器**：自動／Chrome／Edge／Brave／內建 Chromium，未安裝的會標示。選「自動」時依序偵測 Chrome → Edge → Brave → 內建 Chromium。下次執行排程任務時生效；也可在 `bot.env` 以 `BOT_BROWSER` 指定（App 的選擇優先）。
+    *   **日誌頁最多保留**：0／100／300／500／1000／3000 行（預設 500），存在記憶體裡，調小會立刻裁掉舊的。
+    *   **把日誌寫入硬碟**：預設關閉。開啟後寫入 `~/Library/Logs/DiscordAIConcludeBot/`，超過 5 MB 會輪替。
+
+#### 日誌
+可切換「標注回覆」與「排程任務」兩份日誌，只畫看得到的行（開頁不會卡）、可選取文字；「清除」清掉畫面上的內容；「在 Finder 顯示日誌檔」只有開啟寫入硬碟後才有檔案。
+
+#### 設定檔
+編輯 iCloud 上的 `bot.env`（頂端顯示完整路徑）：「儲存並重新啟動標注回覆」、「重新讀取」（從 iCloud 重新載入）、「在 Finder 顯示」。內容是明碼，存在你的 iCloud Drive。iCloud 檔案還在下載時會顯示等待訊息，可按「重新檢查」。
+
 ### 選單列狀態圖示
 
 App 以選單列圖示顯示目前狀態（由上往下判斷，符合第一個就採用）：
@@ -262,13 +293,6 @@ App 以選單列圖示顯示目前狀態（由上往下判斷，符合第一個�
 | <img src="docs/icons/text.bubble.badge.clock.fill.png" width="48"> | `text.bubble.badge.clock.fill` | 已設定排程、閒置中，已開啟標注回覆 |
 | <img src="docs/icons/text.bubble.fill.png" width="48"> | `text.bubble.fill` | 未設定排程，已開啟標注回覆 |
 | <img src="docs/icons/text.bubble.png" width="48"> | `text.bubble` | 都沒開 |
-
-### 設定頁
-*   **渲染圖片的瀏覽器**：下拉選單可選 自動／Chrome／Edge／Brave／內建 Chromium，未安裝的會標示。選「自動」時依序偵測 Chrome → Edge → Brave → 內建 Chromium。下次執行排程任務時生效；也可在 `bot.env` 以 `BOT_BROWSER` 指定（App 的選擇優先）。
-*   **日誌頁最多保留**：0／100／300／500／1000／3000 行（預設 500），存在記憶體裡，調小會立刻裁掉舊的。
-*   **把日誌寫入硬碟**：預設關閉。開啟後寫入 `~/Library/Logs/DiscordAIConcludeBot/`，超過 5 MB 會輪替。
-*   **權限**：重新要求權限、開啟系統設定的區域網路頁。
-*   開機自動啟動、開啟 App 時是否顯示主視窗、排程間隔與分鐘。
 
 ### 權限
 連到區域網路上的本地 AI 服務（`LOCAL_AI_SERVER`）需要「區域網路」權限，讀取 `bot.env` 需要 iCloud Drive 存取。App 在**第一次開啟、或重新打包後第一次開啟**時，會主動把這些權限要過一遍。臨時簽章每次打包身分都會改變，macOS 會重新詢問，所以重新打包後要再按一次「允許」。Python 的區網連線算在 App 頭上，App 取得權限後 bot 就能連線。
