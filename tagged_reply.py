@@ -179,6 +179,7 @@ class TaggedResponseBot(discord.Client):
         # AI Client 延遲到第一次需要時才建立（見下方 genai_client／local_ai_client），待命時不載入 SDK
         self._genai_client = None
         self._local_ai_client = None
+        self._busy_ids = set()      # 正在處理中的被提及訊息（狀態列圖示用）
         if not self.secrets['GEMINI_API_KEY']:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
         if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
@@ -332,6 +333,16 @@ class TaggedResponseBot(discord.Client):
         return first_result
 
     async def on_message(self, message):
+        """包一層：處理被提及的訊息期間，回報 [bot-state] busy／idle 給 App 的狀態列圖示"""
+        try:
+            await self._on_message_impl(message)
+        finally:
+            if message.id in self._busy_ids:
+                self._busy_ids.discard(message.id)
+                if not self._busy_ids:
+                    print("[bot-state] idle")
+
+    async def _on_message_impl(self, message):
         # 1. 忽略自己的訊息
         if message.author == self.user:
             return
@@ -359,6 +370,9 @@ class TaggedResponseBot(discord.Client):
 
         if is_triggered:
             self._dirty.set()
+            self._busy_ids.add(message.id)
+            if len(self._busy_ids) == 1:
+                print("[bot-state] busy")
             # 3.1 檢查是否有特殊執行指令 (部署等) - 收到訊息馬上檢查，不調閱歷史
             content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
             

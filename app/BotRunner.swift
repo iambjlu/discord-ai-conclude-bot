@@ -20,6 +20,10 @@ final class BotRunner: ObservableObject, Identifiable {
     @Published private(set) var state: State = .stopped
     @Published private(set) var logs: [String] = []
     @Published private(set) var lastStart: Date?
+    /// 常駐 bot 是否已登入 Discord（偵測 "Bot 已登入" 這行日誌）；啟動中為 false
+    @Published private(set) var isReady = false
+    /// 常駐 bot 正在處理被提及的訊息（偵測 tagged_reply 印出的 [bot-state] busy／idle 標記）
+    @Published private(set) var isBusy = false
 
     private var process: Process?
     private var wantRunning = false
@@ -141,6 +145,7 @@ final class BotRunner: ObservableObject, Identifiable {
         timeoutTask?.cancel()
         let ranFor = Date().timeIntervalSince(lastStart ?? Date())
         process = nil
+        isReady = false; isBusy = false
         if !outBuf.isEmpty { flushLine(outBuf); outBuf.removeAll() }
         append("⏹️ 結束（exit \(code)）")
         guard wantRunning else { state = keepAlive ? .stopped : .finished(code); return }
@@ -166,7 +171,12 @@ final class BotRunner: ObservableObject, Identifiable {
 
     private func flushLine(_ d: Data) {
         let s = String(decoding: d, as: UTF8.self).trimmingCharacters(in: .controlCharacters.subtracting(.init(charactersIn: "\t")))
-        if !s.isEmpty { append(s) }
+        guard !s.isEmpty else { return }
+        // 狀態標記只更新狀態，不放進日誌
+        if s == "[bot-state] busy" { isBusy = true; return }
+        if s == "[bot-state] idle" { isBusy = false; return }
+        if s.contains("Bot 已登入") { isReady = true }
+        append(s)
     }
 
     private func append(_ line: String) {

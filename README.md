@@ -9,6 +9,19 @@
 
 ---
 
+## 🖥️ macOS 選單列 App 狀態圖示
+
+App 以選單列圖示顯示目前狀態（由上往下判斷，符合第一個就採用）：
+
+| 圖示 | SF Symbol | 狀態 |
+|:---:|---|---|
+| <img src="docs/icons/ellipsis.bubble.fill.png" width="48"> | `ellipsis.bubble.fill` | 正在啟動（標注回覆尚未登入 Discord，或當掉後等待自動重啟） |
+| <img src="docs/icons/text.bubble.badge.sparkles.fill.png" width="48"> | `text.bubble.badge.sparkles.fill` | 正在工作（執行排程任務，或正在回覆被提及的訊息） |
+| <img src="docs/icons/text.bubble.badge.clock.png" width="48"> | `text.bubble.badge.clock` | 已設定排程、閒置中，未開啟標注回覆 |
+| <img src="docs/icons/text.bubble.badge.clock.fill.png" width="48"> | `text.bubble.badge.clock.fill` | 已設定排程、閒置中，已開啟標注回覆 |
+| <img src="docs/icons/text.bubble.fill.png" width="48"> | `text.bubble.fill` | 未設定排程，已開啟標注回覆 |
+| <img src="docs/icons/text.bubble.png" width="48"> | `text.bubble` | 都沒開 |
+
 ## 🛠️ 安裝說明 (Installation)
 
 ### 1. 環境準備

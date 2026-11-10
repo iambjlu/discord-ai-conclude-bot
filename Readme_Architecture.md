@@ -38,6 +38,10 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 - 日誌預設只保留在記憶體，最多保留行數可在設定頁調整（UserDefaults `logMaxLines`，選項 0／100／300／500／1000／3000，預設 500，0＝不保留；調小時立即裁剪）。
 - 「把日誌寫入硬碟」開啟（UserDefaults `logToDisk`）時才寫入 `~/Library/Logs/DiscordAIConcludeBot/<id>.log`：檔案持續開著寫入、以位元組計數判斷超過 5 MB 輪替；關閉時不建立資料夾也不開檔。
 
+### 狀態列圖示（`DiscordBotApp.swift` 的 `MenuIcon`）
+依序判斷：排程任務執行中或標注回覆正在處理訊息 → `text.bubble.badge.sparkles.fill`；標注回覆啟動中（尚未登入）或等待重啟 → `ellipsis.bubble.fill`；其餘依「是否啟用排程 × 標注回覆是否在跑」分為 `text.bubble.badge.clock.fill`／`text.bubble.badge.clock`／`text.bubble.fill`／`text.bubble`。圖示說明與圖片見 `README.md`（圖檔在 `docs/icons/`）。
+「已登入」由 `BotRunner` 偵測日誌行 `Bot 已登入` 得知（`isReady`）；「正在處理訊息」由 `tagged_reply.py` 的 `on_message` 包裝層在處理被提及的訊息前後印出 `[bot-state] busy`／`[bot-state] idle`（`isBusy`），`BotRunner` 解析後不放進日誌。
+
 ### `AppModel.swift`
 兩個 `BotRunner` 的總管、排程計時（每 60 秒檢查，tolerance 20 秒讓系統合併喚醒以省電，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`logMaxLines`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
 

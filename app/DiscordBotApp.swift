@@ -87,12 +87,20 @@ struct MenuIcon: View {
             }
     }
 
+    /// 狀態列圖示（由高到低判斷）：工作中 > 啟動中 > 排程×標注 的四種組合
     private var symbol: String {
-        if server.isRunning { return "arrow.triangle.2.circlepath" }
+        if server.isRunning || tagged.isBusy { return "text.bubble.badge.sparkles.fill" }   // 正在工作
         switch tagged.state {
-        case .running: return "bubble.left.and.bubble.right.fill"
-        case .backoff: return "exclamationmark.bubble"
-        default: return "bubble.left.and.bubble.right"
+        case .backoff: return "ellipsis.bubble.fill"                                       // 重啟中（也算啟動中）
+        case .running where !tagged.isReady: return "ellipsis.bubble.fill"                  // 正在啟動
+        default: break
+        }
+        let taggedOn = tagged.state == .running
+        switch (model.scheduleEnabled, taggedOn) {
+        case (true, true): return "text.bubble.badge.clock.fill"    // 有排程、閒置、標注開啟
+        case (true, false): return "text.bubble.badge.clock"        // 有排程、閒置、標注未開
+        case (false, true): return "text.bubble.fill"               // 無排程、標注開啟
+        case (false, false): return "text.bubble"                   // 都沒開
         }
     }
 }
