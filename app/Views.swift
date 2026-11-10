@@ -38,6 +38,7 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Text("Discord AI Conclude Bot").font(.headline)
             Button("開啟主視窗") {
                 closePanel()
                 NSApp.setActivationPolicy(.regular)
