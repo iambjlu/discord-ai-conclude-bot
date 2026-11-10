@@ -37,7 +37,7 @@ struct MenuContent: View {
             if let next = model.nextRun { Text("下次排程：\(timeFmt.string(from: next))").font(.caption).foregroundStyle(.secondary) }
             if let m = memory {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("記憶體使用（展開時取樣）：\(m.summary)")
+                    Text("記憶體使用：\(m.summary)")
                     Text(m.detail).foregroundStyle(.tertiary)
                 }.font(.caption).foregroundStyle(.secondary)
             }

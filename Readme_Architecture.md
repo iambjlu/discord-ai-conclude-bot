@@ -26,7 +26,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 
 ### `tagged_reply.py`（對話機器人）
 常駐，監聽 @Bot 提及並回覆；不寫暫存檔。
-- 待命時省記憶體：`google.genai`、`openai` 以 `_LazyModule` 延遲載入，`genai_client`／`local_ai_client` 為第一次使用才建立的 property；Discord 連線設定 `max_messages=100`、`member_cache_flags=none()`、`chunk_guilds_at_startup=False`（程式只用訊息附帶的 member 資料取暱稱）；`setup_hook` 啟動背景任務，每 5 分鐘呼叫 `release_memory()`（`gc.collect()` ＋ `malloc_zone_pressure_relief`）把記憶體還給系統。
+- 待命時省記憶體：`google.genai`、`openai` 以 `_LazyModule` 延遲載入，`genai_client`／`local_ai_client` 為第一次使用才建立的 property；Discord 連線設定 `max_messages=100`、`member_cache_flags=none()`、`chunk_guilds_at_startup=False`（程式只用訊息附帶的 member 資料取暱稱）；`setup_hook` 啟動背景任務：處理過被提及的訊息後安靜 60 秒才呼叫一次 `release_memory()`（`gc.collect()` ＋ `malloc_zone_pressure_relief`），完全閒置時沒有任何定時喚醒（省電）。
 
 ### 其他
 `hello_msg.py`（系統資訊推播）、`get_message.py`、`tcc.py`、`sender/`、`split_long_image/`、`image_reg/`。
@@ -39,7 +39,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 - 「把日誌寫入硬碟」開啟（UserDefaults `logToDisk`）時才寫入 `~/Library/Logs/DiscordAIConcludeBot/<id>.log`：檔案持續開著寫入、以位元組計數判斷超過 5 MB 輪替；關閉時不建立資料夾也不開檔。
 
 ### `AppModel.swift`
-兩個 `BotRunner` 的總管、排程計時（每 30 秒檢查，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
+兩個 `BotRunner` 的總管、排程計時（每 60 秒檢查，tolerance 20 秒讓系統合併喚醒以省電，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
 
 ### `Views.swift`
 主視窗：狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量。

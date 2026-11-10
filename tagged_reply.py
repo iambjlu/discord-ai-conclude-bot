@@ -212,11 +212,16 @@ class TaggedResponseBot(discord.Client):
         return self._local_ai_client
 
     async def setup_hook(self):
-        async def _periodic_release():
+        # 只在處理過被提及的訊息後、安靜 60 秒才釋放一次記憶體；完全閒置時沒有任何定時喚醒（省電）
+        self._dirty = asyncio.Event()
+
+        async def _release_when_idle():
             while True:
-                await asyncio.sleep(300)
+                await self._dirty.wait()
+                await asyncio.sleep(60)
+                self._dirty.clear()
                 release_memory()
-        self._release_task = asyncio.create_task(_periodic_release())
+        self._release_task = asyncio.create_task(_release_when_idle())
 
     async def on_ready(self):
         print('-------------------------------------------')
@@ -349,6 +354,7 @@ class TaggedResponseBot(discord.Client):
                 pass
 
         if is_triggered:
+            self._dirty.set()
             # 3.1 檢查是否有特殊執行指令 (部署等) - 收到訊息馬上檢查，不調閱歷史
             content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
             

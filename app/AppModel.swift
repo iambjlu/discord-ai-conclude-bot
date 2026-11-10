@@ -67,9 +67,12 @@ final class AppModel: ObservableObject {
     }
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+        // 排程是以分鐘為單位，不需要頻繁醒來；放寬 tolerance 讓系統把喚醒合併，閒置更省電
+        let t = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             MainActor.assumeIsolated { AppModel.current?.tick() }
         }
+        t.tolerance = 20
+        timer = t
         tick()
     }
 
@@ -187,7 +190,7 @@ final class AppModel: ObservableObject {
 
     func tick() {
         tickCount += 1
-        if tickCount % 20 == 0 { malloc_zone_pressure_relief(nil, 0) }   // 約每 10 分鐘把釋放的記憶體還給系統
+        if tickCount % 10 == 0 { malloc_zone_pressure_relief(nil, 0) }   // 約每 10 分鐘把釋放的記憶體還給系統
         if autoStartTagged, envAvailability != .ready { refreshEnv() }
         if autoStartTagged, tagged.state == .stopped, !userStoppedTagged, envAvailability == .ready { startTagged() }
         guard scheduleEnabled, !server.isRunning, let slot = currentSlot(Date()) else { return }
