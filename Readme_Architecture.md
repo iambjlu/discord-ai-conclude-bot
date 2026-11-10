@@ -1,17 +1,26 @@
 # 專案架構
 
 ## 總覽
-Discord AI 摘要機器人，包成 macOS 選單列 App（`DiscordBot.app`）。App 用 Swift 管理兩個 Python 行程：
-常駐的 `tagged_reply.py` 與定時執行、跑完自動結束的 `server.py`。
+Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要、自動化截圖、天氣預報等功能，包成 macOS 選單列 App（`DiscordBot.app`）。App 用 Swift 管理兩個 Python 行程：
+常駐的 `tagged_reply.py` 與定時執行、跑完自動結束的 `server.py`。環境變數放在 `.env`（API keys、頻道 IDs 等，不進 git；App 版改用 iCloud 的 `bot.env`），修改後需重新啟動 bot。
+
+直接執行（不經 App）：
+```bash
+.venv/bin/python3 server.py        # 排程機器人（執行完自動結束）
+.venv/bin/python3 tagged_reply.py  # 對話機器人（需常駐）
+```
 
 ## Python 腳本
 
 ### `server.py`（排程任務）
-登入 Discord，依 `get_settings()` 的各 `*_MODE`／`*_SCHEDULE_MODULO` 執行 AI 摘要、每日金句、每日摘要彙整、連結截圖、天氣預報後結束。
-- 連結截圖用 `xcrun simctl` 的 iPad 模擬器截圖；截圖暫存檔寫入系統暫存資料夾（`tempfile.gettempdir()`，檔名含 pid 避免衝突），送出後立即刪除，不會寫進 App 內部。
+登入 Discord，依 `get_settings()` 的各 `*_MODE`／`*_SCHEDULE_MODULO` 執行各項任務後結束。
+- 主要函數：`run_ai_summary()`（抓頻道最近 X 小時訊息，Gemini 摘要）、`run_daily_quote()`（統計昨天最多反應的訊息並渲染金句圖）、`run_daily_ai_summary()`（每日摘要彙整）、`run_link_screenshot()`（抓頻道中的 URL，用 iPad 模擬器截圖）、`run_weather_forecast()`（抓 CWA 天氣資料，生成各地區天氣卡）、`generate_choice_solver()`（選擇困難建議）、`generate_minesweeper()`（踩地雷小遊戲）。
+- 排程設定（`get_settings`）：`AI_SUMMARY_SCHEDULE_MODULO`（AI 摘要間隔，預設每 4 小時）；`DAILY_QUOTE_MODE`、`LINK_SCREENSHOT_MODE`、`WEATHER_MODE`、`AI_SUMMARY_MODE`（0 關閉、1 排程、2 強制）。
+- Playwright 瀏覽器路徑：`os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", <專案>/browsers)`，避免被系統 cache 清理；安裝命令 `PLAYWRIGHT_BROWSERS_PATH=browsers python -m playwright install chromium`。
+- 連結截圖需要 macOS + Xcode（iOS 模擬器），用 `xcrun simctl` 的 iPad 模擬器截圖；截圖暫存檔寫入系統暫存資料夾（`tempfile.gettempdir()`，檔名含 pid 避免衝突），送出後立即刪除，不會寫進 App 內部。
 
 ### `renderer.py`（圖片渲染）
-用 Playwright 把 HTML 範本渲染成圖片（金句戰報、天氣卡），結果以記憶體 buffer 回傳，不落地成檔案。
+用 Playwright 把 HTML 範本渲染成圖片（金句戰報、天氣卡），結果以記憶體 buffer 回傳，不落地成檔案；依賴 `browsers/` 內的 Chromium。
 - 啟動 Chromium 時帶 `LEAN_CHROMIUM_ARGS`（關閉磁碟快取、當機回報、背景網路與同步），並使用 `new_context()`（無痕，Cookies／歷史只在記憶體），以減少硬碟寫入。
 
 ### `tagged_reply.py`（對話機器人）
