@@ -15,6 +15,7 @@
     * [🛠️ 安裝說明 (Installation)](#-安裝說明-installation)
     * [🚀 如何執行 (Usage)](#-如何執行-usage)
     * [⚙️ 進階設定 (Configuration)](#-進階設定-configuration)
+    * [🏠 本地模型（OpenAI 相容服務）](#-本地模型openai-相容服務)
     * [☁️ GitHub Actions 自動排程設定](#-github-actions-自動排程設定)
     * [📝 常見問題](#-常見問題)
 * [🖥️ macOS 選單列 App](#-macos-選單列-app)
@@ -197,6 +198,65 @@ LOCAL_AI_IMAGE_SUPPORT=true
 
 ---
 
+### 🏠 本地模型（OpenAI 相容服務）
+
+對話機器人除了 Gemini／Gemma 之外，也可以改用**自己架設的模型**回答，對話內容不必送到雲端。任何提供 OpenAI 相容 API（`/v1/chat/completions`）的服務都可以，例如 LM Studio、Ollama、vLLM、llama.cpp server。
+
+#### 設定
+在 `.env`（App 版是 `bot.env`）加入，修改後需重新啟動 bot：
+
+| 變數 | 說明 |
+|---|---|
+| `LOCAL_AI_SERVER` | 服務的 API 位址，通常以 `/v1` 結尾，例如 `http://192.168.1.10:1234/v1` |
+| `LOCAL_AI_MODEL` | 要使用的模型名稱（需和服務上載入的名稱一致） |
+| `LOCAL_AI_API_KEY` | API Key。**不能留空**：留空會在建立連線時失敗（顯示「初始化失敗」）。多數本地服務不檢查內容，隨便填一個即可，例如 `0000` |
+| `LOCAL_AI_IMAGE_SUPPORT` | 模型是否支援圖片輸入（預設 `true`）；不支援的模型請設為 `false` |
+| `LOCAL_AI_ENABLED` | 總開關（預設 `true`）；設為 `false` 時，上面的設定會被忽略，等同沒有本地模型 |
+
+`LOCAL_AI_SERVER` 與 `LOCAL_AI_MODEL` 兩者都有填、且 `LOCAL_AI_ENABLED` 不是 `false`，本地模型才會啟用。連線物件在第一次使用時才建立。
+
+#### 怎麼使用
+在標注 bot 的訊息裡加上關鍵字 **`/本地模型`**，這則訊息就會交給本地模型回答：
+
+```
+@Bot /本地模型 幫我整理一下剛剛大家討論的重點
+```
+
+*   沒有加關鍵字時，一律使用雲端的 Gemini／Gemma。
+*   關鍵字的優先順序：`/本地模型` ＞ `/聰明模型` ＞ 一般模式。
+*   回覆結尾會註明「由本地模型「模型名稱」驅動」。
+*   本地模型**不會自動退回雲端模型**；失敗時會直接回報錯誤（見下方）。
+*   讀取的對話範圍、長度與回答長度可在 `tagged_reply.py` 的 `get_settings()` 調整：
+
+    | 設定 | 預設 | 說明 |
+    |---|---|---|
+    | `LOCAL_MODE_KEYWORD` | `/本地模型` | 觸發關鍵字 |
+    | `LOCAL_TOTAL_MSG_LIMIT` | `150` | 最多讀取幾則頻道訊息當背景 |
+    | `LOCAL_MAX_MSG_LENGTH` | `150` | 每則訊息最多讀幾個字（超過截斷） |
+    | `LOCAL_TOKEN_LIMIT` | `120000` | 回答的 `max_tokens` |
+    | `LOCAL_AI_TEMPERATURE` | `0.7` | 取樣溫度（程式內有預設值，`get_settings()` 沒有列出，要調整時自行加上這個鍵） |
+
+#### 圖片辨識
+`LOCAL_AI_IMAGE_SUPPORT=true`（且模型支援圖片）時，本地模型也能看圖：
+*   **標注並附圖**：在訊息中標注 bot、加上 `/本地模型` 並附上圖片，會自動辨識。
+*   **回覆別人的圖片**：回覆那則圖片訊息，並寫上 `/辨識圖片 /本地模型 你的問題`。
+*   模型不支援圖片時請設成 `false`，bot 就不會把圖片送給它，回覆結尾也會註明圖片辨識已關閉。
+
+#### 無法使用時會看到什麼
+原因不同，訊息也不同：
+
+| 情況 | Discord 上的訊息 |
+|---|---|
+| `LOCAL_AI_ENABLED=false` | ❌ 無法回應：本地模型已停用 |
+| 沒停用，但 `LOCAL_AI_SERVER` 或 `LOCAL_AI_MODEL` 是空的 | ❌ 無法回應：本地模型未設定 |
+| 有設定，但建立連線物件時出錯 | ❌ 無法回應：本地模型初始化失敗：（錯誤內容） |
+| 服務連不上、逾時、模型沒回應等（呼叫時才發生） | ⚠️ 模型發生錯誤，並附上錯誤內容（例如 `Connection error.`） |
+
+圖片辨識時，前綴會是「無法辨識圖片」。
+
+#### 在 macOS App 使用
+設定方式與上面相同，寫在 `bot.env`。伺服器在區域網路上時，macOS 會要求「區域網路」權限，沒允許的話會出現 `Connection error.`，請見 App 段落的「權限」。
+
 ### ☁️ GitHub Actions 自動排程設定
 
 本專案已包含 `.github/workflows/run_bot_link_preview.yml`，設定為每 4 小時執行一次（0, 4, 8, 12, 16, 20 時）。
@@ -259,6 +319,7 @@ A: 請檢查 API Key 是否有效，以及 `gemini_model` 指定的模型名稱�
 *   Python 3.11 以上（例如 `brew install python`）。第一次啟動會在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv 並安裝套件（需連網，約 1～3 分鐘），之後不用再裝。
 *   一個可用來渲染圖片的瀏覽器：已安裝 Chrome、Edge 或 Brave 就直接使用；都沒有才會下載 Playwright 的 Chromium（約 150 MB，一次）。
 *   連結截圖功能另需 Xcode 與 iPad 模擬器；沒有的話只有這個功能不能用。
+*   要使用本地模型的話，見 Python 版段落的「🏠 本地模型」，App 設定寫在 `bot.env`，並注意區域網路權限。
 
 ### 打包與安裝
 ```bash
