@@ -154,6 +154,7 @@ def get_secrets():
     secrets['LOCAL_AI_MODEL'] = local_model
     secrets['LOCAL_AI_API_KEY'] = local_api_key
     secrets['LOCAL_AI_IMAGE_SUPPORT'] = local_image_support
+    secrets['LOCAL_AI_ENABLED'] = local_enabled
     if not local_enabled:
         print("ℹ️ 本地模型已停用 (LOCAL_AI_ENABLED=false)")
     else:
@@ -179,6 +180,7 @@ class TaggedResponseBot(discord.Client):
         # AI Client 延遲到第一次需要時才建立（見下方 genai_client／local_ai_client），待命時不載入 SDK
         self._genai_client = None
         self._local_ai_client = None
+        self._local_ai_init_error = None
         self._busy_ids = set()      # 正在處理中的被提及訊息（狀態列圖示用）
         if not self.secrets['GEMINI_API_KEY']:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
@@ -213,8 +215,17 @@ class TaggedResponseBot(discord.Client):
                 )
                 print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
             except Exception as e:
+                self._local_ai_init_error = str(e)
                 print(f"❌ Local AI Client 初始化失敗: {e}")
         return self._local_ai_client
+
+    def local_ai_unavailable_reason(self):
+        """本地模型不能用的原因，三種分開講：已停用／未設定／初始化失敗（連線錯誤是呼叫時才發生，另外由「模型發生錯誤」回報）"""
+        if not self.secrets.get('LOCAL_AI_ENABLED', True):
+            return "本地模型已停用（LOCAL_AI_ENABLED=false）"
+        if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
+            return "本地模型未設定（LOCAL_AI_SERVER 或 LOCAL_AI_MODEL 是空的）"
+        return f"本地模型初始化失敗：{self._local_ai_init_error or '未知原因'}"
 
     async def setup_hook(self):
         # 只在處理過被提及的訊息後、安靜 60 秒才釋放一次記憶體；完全閒置時沒有任何定時喚醒（省電）
@@ -576,7 +587,7 @@ class TaggedResponseBot(discord.Client):
                         # 優先順序：/本地模型 > /聰明模型 > 一般模式
                         if is_local_model_mode:
                             if not self.local_ai_client:
-                                await self.safe_reply(message, "❌ 無法辨識圖片：本地 AI 已停用、未設定或初始化失敗。")
+                                await self.safe_reply(message, f"❌ 無法辨識圖片：{self.local_ai_unavailable_reason()}")
                                 return
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
@@ -967,7 +978,7 @@ class TaggedResponseBot(discord.Client):
                     if is_local_model_mode:
                         # === 本地模型模式（支援圖片辨識）===
                         if not self.local_ai_client:
-                            await self.safe_reply(message, "❌ 無法回應：本地 AI 已停用、未設定或初始化失敗。")
+                            await self.safe_reply(message, f"❌ 無法回應：{self.local_ai_unavailable_reason()}")
                             return
 
                         model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
