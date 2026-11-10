@@ -145,21 +145,25 @@ def get_secrets():
     secrets['GEMINI_API_KEY'] = gemini_key
 
     # 3. Local AI Server (OpenAI Compatible)
-    local_server = os.getenv('LOCAL_AI_SERVER', '')
-    local_model = os.getenv('LOCAL_AI_MODEL', '')
+    local_enabled = os.getenv('LOCAL_AI_ENABLED', 'true').lower() in ('true', '1', 'yes')
+    local_server = os.getenv('LOCAL_AI_SERVER', '') if local_enabled else ''
+    local_model = os.getenv('LOCAL_AI_MODEL', '') if local_enabled else ''
     local_api_key = os.getenv('LOCAL_AI_API_KEY', '')
     local_image_support = os.getenv('LOCAL_AI_IMAGE_SUPPORT', 'true').lower() in ('true', '1', 'yes')
     secrets['LOCAL_AI_SERVER'] = local_server
     secrets['LOCAL_AI_MODEL'] = local_model
     secrets['LOCAL_AI_API_KEY'] = local_api_key
     secrets['LOCAL_AI_IMAGE_SUPPORT'] = local_image_support
-    if not local_server:
-        print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
-    if not local_model:
-        print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
-    if not local_api_key:
-        print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
-    if not local_image_support:
+    if not local_enabled:
+        print("ℹ️ 本地模型已停用 (LOCAL_AI_ENABLED=false)")
+    else:
+        if not local_server:
+            print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
+        if not local_model:
+            print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
+        if not local_api_key:
+            print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
+    if local_enabled and not local_image_support:
         print("ℹ️ 本地模型已關閉圖片辨識功能 (LOCAL_AI_IMAGE_SUPPORT=false)")
 
     return secrets
@@ -178,7 +182,7 @@ class TaggedResponseBot(discord.Client):
         if not self.secrets['GEMINI_API_KEY']:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
         if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
-            print("⚠️ 警告: 未設定 LOCAL_AI_SERVER 或 LOCAL_AI_MODEL")
+            print("ℹ️ 本地模型未啟用（已停用或未設定）")
 
         self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
@@ -558,7 +562,7 @@ class TaggedResponseBot(discord.Client):
                         # 優先順序：/本地模型 > /聰明模型 > 一般模式
                         if is_local_model_mode:
                             if not self.local_ai_client:
-                                await self.safe_reply(message, "❌ 無法辨識圖片：本地 AI 服務未設定或初始化失敗。")
+                                await self.safe_reply(message, "❌ 無法辨識圖片：本地 AI 已停用、未設定或初始化失敗。")
                                 return
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
@@ -949,7 +953,7 @@ class TaggedResponseBot(discord.Client):
                     if is_local_model_mode:
                         # === 本地模型模式（支援圖片辨識）===
                         if not self.local_ai_client:
-                            await self.safe_reply(message, "❌ 無法回應：本地 AI 服務未設定或初始化失敗。")
+                            await self.safe_reply(message, "❌ 無法回應：本地 AI 已停用、未設定或初始化失敗。")
                             return
 
                         model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')

@@ -45,6 +45,7 @@ enum EnvStore {
     HELLO_MSG_ID=
     WEATHER_KEY=
 
+    LOCAL_AI_ENABLED=true
     LOCAL_AI_SERVER=
     LOCAL_AI_MODEL=
     LOCAL_AI_API_KEY=

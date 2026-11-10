@@ -25,7 +25,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 - 啟動瀏覽器時帶 `LEAN_CHROMIUM_ARGS`（關閉磁碟快取、當機回報、背景網路與同步），並使用 `new_context()`（無痕，Cookies／歷史只在記憶體），以減少硬碟寫入。
 
 ### `tagged_reply.py`（對話機器人）
-常駐，監聽 @Bot 提及並回覆；不寫暫存檔。
+常駐，監聽 @Bot 提及並回覆；不寫暫存檔。本地模型（OpenAI 相容服務）由 `LOCAL_AI_ENABLED`（預設 true，設 false 即停用）與 `LOCAL_AI_SERVER`／`LOCAL_AI_MODEL`／`LOCAL_AI_API_KEY` 控制；停用或任一必要欄位為空時不建立連線，使用 `/本地模型` 關鍵字會回覆已停用的提示。
 - 待命時省記憶體：`google.genai`、`openai` 以 `_LazyModule` 延遲載入，`genai_client`／`local_ai_client` 為第一次使用才建立的 property；Discord 連線設定 `max_messages=100`、`member_cache_flags=none()`、`chunk_guilds_at_startup=False`（程式只用訊息附帶的 member 資料取暱稱）；`setup_hook` 啟動背景任務：處理過被提及的訊息後安靜 60 秒才呼叫一次 `release_memory()`（`gc.collect()` ＋ `malloc_zone_pressure_relief`），完全閒置時沒有任何定時喚醒（省電）。
 
 ### 其他
