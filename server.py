@@ -7,6 +7,7 @@ sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
 import random
+import tempfile
 
 
 # --- 0. 基礎依賴檢查 (Helper) ---
@@ -1235,7 +1236,7 @@ async def run_link_screenshot(client, settings, secrets):
             print("   ⏳ 等待渲染...")
             await asyncio.sleep(25) # 等待渲染 (12s -> 15s)
 
-            filename = f"screenshot_temp_{idx}.png"
+            filename = os.path.join(tempfile.gettempdir(), f"screenshot_temp_{os.getpid()}_{idx}.png")
             await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "io", ipad_uuid, "screenshot", filename])
 
             # 關閉 Safari

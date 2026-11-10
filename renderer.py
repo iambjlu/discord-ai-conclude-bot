@@ -5,6 +5,13 @@
 import asyncio
 import base64
 from playwright.async_api import async_playwright
+
+# 少寫硬碟：關掉磁碟快取、當機回報、背景網路與同步（new_context 本身是無痕，Cookies／歷史只在記憶體）
+LEAN_CHROMIUM_ARGS = [
+    "--disk-cache-size=1", "--media-cache-size=1",
+    "--disable-breakpad", "--disable-crash-reporter",
+    "--disable-background-networking", "--disable-sync", "--no-first-run",
+]
 import os
 import io
 
@@ -337,9 +344,9 @@ class ImageGenerator:
 
         async with async_playwright() as p:
             try:
-                browser = await p.chromium.launch(channel="chrome", headless=True) # Try system Chrome first for improved font rendering
+                browser = await p.chromium.launch(channel="chrome", headless=True, args=LEAN_CHROMIUM_ARGS) # Try system Chrome first for improved font rendering
             except:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=True, args=LEAN_CHROMIUM_ARGS)
                 
             # 設定語系與時區
             context = await browser.new_context(
@@ -703,9 +710,9 @@ class ImageGenerator:
         
         async with async_playwright() as p:
             try:
-                browser = await p.chromium.launch(channel="chrome", headless=True)
+                browser = await p.chromium.launch(channel="chrome", headless=True, args=LEAN_CHROMIUM_ARGS)
             except:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=True, args=LEAN_CHROMIUM_ARGS)
                 
             # Use explicit viewport size that is large enough for the content to layout horizontally
             # width ≈ 3 * 500 + 2 * 30 (gap) + 2 * 60 (padding) ≈ 1680. 

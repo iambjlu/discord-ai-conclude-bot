@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     @Published var minuteOffset: Int { didSet { UserDefaults.standard.set(minuteOffset, forKey: "minuteOffset") } }
     @Published var autoStartTagged: Bool { didSet { UserDefaults.standard.set(autoStartTagged, forKey: "autoStartTagged") } }
     @Published var showWindowOnLaunch: Bool { didSet { UserDefaults.standard.set(showWindowOnLaunch, forKey: "showWindowOnLaunch") } }
+    @Published var logToDisk: Bool { didSet { UserDefaults.standard.set(logToDisk, forKey: "logToDisk") } }
     @Published var loginItem: Bool = SMAppService.mainApp.status == .enabled
     @Published var loginItemError: String?
 
@@ -41,6 +42,7 @@ final class AppModel: ObservableObject {
         intervalHours = d.object(forKey: "intervalHours") as? Int ?? 2
         minuteOffset = d.object(forKey: "minuteOffset") as? Int ?? 3
         autoStartTagged = d.object(forKey: "autoStartTagged") as? Bool ?? true
+        logToDisk = d.bool(forKey: "logToDisk")
         showWindowOnLaunch = d.object(forKey: "showWindowOnLaunch") as? Bool ?? true
         AppModel.current = self
         // 啟動時視為「這一輪已處理」，避免一開 App 就自動跑排程（會發總結打擾別人）

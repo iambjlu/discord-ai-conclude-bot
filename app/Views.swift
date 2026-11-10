@@ -126,6 +126,9 @@ struct StatusTab: View {
                 Toggle("開機時自動啟動", isOn: Binding(get: { model.loginItem }, set: { model.setLoginItem($0) }))
                 if let e = model.loginItemError { Text(e).font(.caption).foregroundStyle(.red) }
                 Toggle("開啟 App 時顯示主視窗", isOn: $model.showWindowOnLaunch)
+                Toggle("把日誌寫入硬碟（預設關閉）", isOn: $model.logToDisk)
+                Text("關閉時日誌只保留在記憶體（日誌分頁看得到最近 1000 行，結束 App 就消失），不會寫入 SSD。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -153,9 +156,8 @@ struct LogTab: View {
                     .pickerStyle(.segmented).frame(width: 220).labelsHidden()
                 Spacer()
                 Button("清除") { runner.clearLogs() }
-                Button("在 Finder 顯示日誌檔") {
-                    NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiscordAIConcludeBot"))
-                }
+                Button("在 Finder 顯示日誌檔") { NSWorkspace.shared.open(BotRunner.logDir) }
+                    .disabled(!FileManager.default.fileExists(atPath: BotRunner.logDir.path))
             }
             ScrollViewReader { proxy in
                 ScrollView {

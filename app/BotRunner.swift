@@ -30,13 +30,20 @@ final class BotRunner: ObservableObject, Identifiable {
     private var envProvider: () -> [String: String] = { [:] }
     private let maxLines = 1000
     private let logFile: URL
+    private var logHandle: FileHandle?
+    private var logBytes = 0
+
+    /// 是否把日誌寫進硬碟（預設關閉，只留在記憶體；為了減少 SSD 寫入）
+    static var diskLogging: Bool { UserDefaults.standard.bool(forKey: "logToDisk") }
 
     init(id: String, title: String, script: String, keepAlive: Bool, maxRuntime: TimeInterval? = nil) {
         self.id = id; self.title = title; self.script = script
         self.keepAlive = keepAlive; self.maxRuntime = maxRuntime
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiscordAIConcludeBot")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        logFile = dir.appendingPathComponent("\(id).log")
+        logFile = BotRunner.logDir.appendingPathComponent("\(id).log")
+    }
+
+    static var logDir: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiscordAIConcludeBot")
     }
 
     var isRunning: Bool { process?.isRunning ?? false }
@@ -162,16 +169,28 @@ final class BotRunner: ObservableObject, Identifiable {
     }
 
     private func writeToFile(_ line: String) {
+        guard BotRunner.diskLogging else {
+            // 剛被關掉：放掉檔案
+            if logHandle != nil { try? logHandle?.close(); logHandle = nil }
+            return
+        }
         let fm = FileManager.default
-        if let size = (try? fm.attributesOfItem(atPath: logFile.path))?[.size] as? Int, size > 5_000_000 {
+        if logHandle == nil {
+            try? fm.createDirectory(at: BotRunner.logDir, withIntermediateDirectories: true)
+            if !fm.fileExists(atPath: logFile.path) { fm.createFile(atPath: logFile.path, contents: nil) }
+            logHandle = try? FileHandle(forWritingTo: logFile)
+            logBytes = Int((try? logHandle?.seekToEnd()) ?? 0)
+        }
+        if logBytes > 5_000_000 {
+            try? logHandle?.close(); logHandle = nil
             let old = logFile.deletingPathExtension().appendingPathExtension("1.log")
             try? fm.removeItem(at: old); try? fm.moveItem(at: logFile, to: old)
+            fm.createFile(atPath: logFile.path, contents: nil)
+            logHandle = try? FileHandle(forWritingTo: logFile)
+            logBytes = 0
         }
-        if !fm.fileExists(atPath: logFile.path) { fm.createFile(atPath: logFile.path, contents: nil) }
-        if let h = try? FileHandle(forWritingTo: logFile) {
-            _ = try? h.seekToEnd()
-            try? h.write(contentsOf: Data("\(ISO8601DateFormatter().string(from: Date())) \(line)\n".utf8))
-            try? h.close()
-        }
+        let data = Data("\(ISO8601DateFormatter().string(from: Date())) \(line)\n".utf8)
+        try? logHandle?.write(contentsOf: data)   // 持續開著、不每行 open/close
+        logBytes += data.count
     }
 }
