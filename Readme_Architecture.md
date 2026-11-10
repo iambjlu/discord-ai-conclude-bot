@@ -21,7 +21,8 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 
 ### `renderer.py`（圖片渲染）
 用 Playwright 把 HTML 範本渲染成圖片（金句戰報、天氣卡），結果以記憶體 buffer 回傳，不落地成檔案；依賴 `browsers/` 內的 Chromium。
-- 啟動 Chromium 時帶 `LEAN_CHROMIUM_ARGS`（關閉磁碟快取、當機回報、背景網路與同步），並使用 `new_context()`（無痕，Cookies／歷史只在記憶體），以減少硬碟寫入。
+- 瀏覽器由 `launch_browser()` 選擇：環境變數 `BOT_BROWSER`（`chrome`／`edge`／`brave`／`chromium` 或執行檔完整路徑）指定，未設定則依序自動偵測 Chrome → Edge → Brave，都沒有才用 Playwright 的 Chromium。
+- 啟動瀏覽器時帶 `LEAN_CHROMIUM_ARGS`（關閉磁碟快取、當機回報、背景網路與同步），並使用 `new_context()`（無痕，Cookies／歷史只在記憶體），以減少硬碟寫入。
 
 ### `tagged_reply.py`（對話機器人）
 常駐，監聽 @Bot 提及並回覆；不寫暫存檔。
@@ -49,7 +50,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 App 進入點與選單列、圖示產生。
 
 ### `core_run.sh` / `launch.py`（打包進 App 的 `core/`）
-`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件；Chromium 的來源依序為：App 內附的 `browsers/`、系統已安裝的 Google Chrome（`renderer.py` 優先用 `channel="chrome"`，此時不下載）、否則首次下載到 Application Support；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本。
+`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件；Chromium 的來源依序為：App 內附的 `browsers/`、系統已安裝的 Chrome／Edge／Brave（`renderer.py` 優先使用，此時不下載）、否則首次下載到 Application Support；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本。
 
 ## 打包
 `./build_app.sh` 以 `swiftc` 編譯並組出 `build/DiscordBot.app`（目前機器架構、macOS 14+、ad-hoc 簽章）。

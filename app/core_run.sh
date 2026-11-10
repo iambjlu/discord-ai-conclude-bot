@@ -55,9 +55,11 @@ if [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$SUM" ]; then
   "$VENV/bin/python" -m pip install -q -r "$REQ" >&2
   echo "$SUM" > "$STAMP"
 fi
-# 系統已有 Google Chrome 就不下載（renderer.py 會優先用 channel="chrome"）
+# 系統已有 Chrome／Edge／Brave 就不下載（renderer.py 會優先使用它們）
 HAS_CHROME=0
-[ -d "/Applications/Google Chrome.app" ] || [ -d "$HOME/Applications/Google Chrome.app" ] && HAS_CHROME=1
+for b in "Google Chrome" "Microsoft Edge" "Brave Browser"; do
+  { [ -d "/Applications/$b.app" ] || [ -d "$HOME/Applications/$b.app" ]; } && HAS_CHROME=1
+done
 if [ "$HAS_CHROME" = "0" ] && [ ! -d "$CORE/browsers" ] && ! ls "$DATA/browsers"/chromium-* >/dev/null 2>&1; then
   echo "[core] 下載 Playwright Chromium（約 150 MB，只需一次）…" >&2
   "$VENV/bin/python" -m playwright install chromium >&2 || echo "[core] ⚠️ Chromium 下載失敗，截圖／圖片渲染功能將無法使用" >&2
