@@ -21,11 +21,12 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 
 ### `renderer.py`（圖片渲染）
 用 Playwright 把 HTML 範本渲染成圖片（金句戰報、天氣卡），結果以記憶體 buffer 回傳，不落地成檔案；依賴 `browsers/` 內的 Chromium。
-- 瀏覽器由 `launch_browser()` 選擇：環境變數 `BOT_BROWSER`（`chrome`／`edge`／`brave`／`chromium` 或執行檔完整路徑）指定，未設定則依序自動偵測 Chrome → Edge → Brave，都沒有才用 Playwright 的 Chromium。
+- 瀏覽器由 `launch_browser()` 選擇：App 設定頁的下拉選單（傳入 `BOT_BROWSER`，優先於 `bot.env`）或環境變數 `BOT_BROWSER`（`chrome`／`edge`／`brave`／`chromium` 或執行檔完整路徑）指定，未設定則依序自動偵測 Chrome → Edge → Brave，都沒有才用 Playwright 的 Chromium。
 - 啟動瀏覽器時帶 `LEAN_CHROMIUM_ARGS`（關閉磁碟快取、當機回報、背景網路與同步），並使用 `new_context()`（無痕，Cookies／歷史只在記憶體），以減少硬碟寫入。
 
 ### `tagged_reply.py`（對話機器人）
 常駐，監聽 @Bot 提及並回覆；不寫暫存檔。
+- 待命時省記憶體：`google.genai`、`openai` 以 `_LazyModule` 延遲載入，`genai_client`／`local_ai_client` 為第一次使用才建立的 property；Discord 連線設定 `max_messages=100`、`member_cache_flags=none()`、`chunk_guilds_at_startup=False`（程式只用訊息附帶的 member 資料取暱稱）；`setup_hook` 啟動背景任務，每 5 分鐘呼叫 `release_memory()`（`gc.collect()` ＋ `malloc_zone_pressure_relief`）把記憶體還給系統。
 
 ### 其他
 `hello_msg.py`（系統資訊推播）、`get_message.py`、`tcc.py`、`sender/`、`split_long_image/`、`image_reg/`。
@@ -38,10 +39,13 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 - 「把日誌寫入硬碟」開啟（UserDefaults `logToDisk`）時才寫入 `~/Library/Logs/DiscordAIConcludeBot/<id>.log`：檔案持續開著寫入、以位元組計數判斷超過 5 MB 輪替；關閉時不建立資料夾也不開檔。
 
 ### `AppModel.swift`
-兩個 `BotRunner` 的總管、排程計時（每 30 秒檢查）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`）。
+兩個 `BotRunner` 的總管、排程計時（每 30 秒檢查，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
 
 ### `Views.swift`
-主視窗：狀態、設定（含「把日誌寫入硬碟」開關）、日誌、設定檔分頁。
+主視窗：狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量。
+
+### `MemoryUsage.swift`
+選單列展開時取樣一次（不即時更新）：用 `ps` 加總 App 本體與其所有子行程（Python、瀏覽器）的實體記憶體（RSS），顯示在選單列面板。
 
 ### `EnvStore.swift`
 `bot.env` 放在 iCloud Drive（`DiscordAIConcludeBot/bot.env`），換電腦登入 iCloud 即可讀到。
@@ -50,7 +54,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 App 進入點與選單列、圖示產生。
 
 ### `core_run.sh` / `launch.py`（打包進 App 的 `core/`）
-`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件；Chromium 的來源依序為：App 內附的 `browsers/`、系統已安裝的 Chrome／Edge／Brave（`renderer.py` 優先使用，此時不下載）、否則首次下載到 Application Support；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本。
+`run.sh` 在 `~/Library/Application Support/DiscordAIConcludeBot` 建立 venv、安裝套件；Chromium 的來源依序為：App 內附的 `browsers/`、系統已安裝的 Chrome／Edge／Brave（`renderer.py` 優先使用，此時不下載）、否則首次下載到 Application Support；設定 `PYTHONDONTWRITEBYTECODE=1` 避免寫入位元碼。`launch.py` 載入 iCloud 的 `bot.env` 後執行指定腳本（App 傳入的 `BOT_BROWSER` 會蓋過 `bot.env`）。
 
 ## 打包
 `./build_app.sh` 以 `swiftc` 編譯並組出 `build/DiscordBot.app`（目前機器架構、macOS 14+、ad-hoc 簽章）。

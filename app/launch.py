@@ -7,11 +7,15 @@ import sys
 
 core = os.path.dirname(os.path.abspath(__file__))
 env_file = os.environ.get("BOT_ENV_FILE", "")
+app_browser = os.environ.get("BOT_BROWSER")     # App 設定頁選的瀏覽器，優先於 bot.env
 if env_file and os.path.isfile(env_file):
     from dotenv import load_dotenv
     load_dotenv(env_file, override=True)
 else:
     print(f"⚠️ 找不到設定檔 BOT_ENV_FILE={env_file!r}，將只使用現有環境變數", flush=True)
+
+if app_browser:
+    os.environ["BOT_BROWSER"] = app_browser
 
 script = os.path.join(core, sys.argv[1])
 sys.path.insert(0, core)

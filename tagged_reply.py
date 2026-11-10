@@ -34,11 +34,36 @@ import discord
 import os
 import re
 from datetime import datetime, timedelta, timezone
-from google import genai
-from google.genai import types
+import asyncio
+import gc
+import ctypes
+
+
+class _LazyModule:
+    """第一次用到才 import：google.genai 約 +33 MB、openai 約 +26 MB，待命時完全不載入"""
+    def __init__(self, name):
+        self._name, self._mod = name, None
+
+    def __getattr__(self, attr):
+        if self._mod is None:
+            self._mod = importlib.import_module(self._name)
+        return getattr(self._mod, attr)
+
+
+genai = _LazyModule("google.genai")
+types = _LazyModule("google.genai.types")
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+openai = _LazyModule("openai")
+
+
+def release_memory():
+    """把 Python 已釋放的記憶體還給系統（macOS）"""
+    gc.collect()
+    try:
+        ctypes.CDLL("/usr/lib/libSystem.B.dylib").malloc_zone_pressure_relief(None, 0)
+    except Exception:
+        pass
 import aiohttp
 import base64
 
@@ -147,31 +172,12 @@ class TaggedResponseBot(discord.Client):
         super().__init__(*args, **kwargs)
         self.settings = settings
         self.secrets = secrets
-        self.genai_client = None
-        
-        # 初始化 GenAI Client
-        if self.secrets['GEMINI_API_KEY']:
-            try:
-                self.genai_client = genai.Client(api_key=self.secrets['GEMINI_API_KEY'])
-                print("✅ GenAI Client 初始化成功")
-            except Exception as e:
-                print(f"❌ GenAI Client 初始化失敗: {e}")
-        else:
+        # AI Client 延遲到第一次需要時才建立（見下方 genai_client／local_ai_client），待命時不載入 SDK
+        self._genai_client = None
+        self._local_ai_client = None
+        if not self.secrets['GEMINI_API_KEY']:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
-
-        # 初始化 Local AI Client (OpenAI Compatible)
-        self.local_ai_client = None
-        if self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL'):
-            try:
-                api_key = self.secrets.get('LOCAL_AI_API_KEY') or None
-                self.local_ai_client = AsyncOpenAI(
-                    base_url=self.secrets['LOCAL_AI_SERVER'],
-                    api_key=api_key,
-                )
-                print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
-            except Exception as e:
-                print(f"❌ Local AI Client 初始化失敗: {e}")
-        else:
+        if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
             print("⚠️ 警告: 未設定 LOCAL_AI_SERVER 或 LOCAL_AI_MODEL")
 
         self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])
@@ -181,6 +187,36 @@ class TaggedResponseBot(discord.Client):
         self.local_image_support = self.secrets.get('LOCAL_AI_IMAGE_SUPPORT', self.settings.get('LOCAL_AI_IMAGE_SUPPORT', True))
         if not self.local_image_support:
             print("ℹ️ 本地模型圖片辨識功能已關閉")
+
+    @property
+    def genai_client(self):
+        if self._genai_client is None and self.secrets['GEMINI_API_KEY']:
+            try:
+                self._genai_client = genai.Client(api_key=self.secrets['GEMINI_API_KEY'])
+                print("✅ GenAI Client 初始化成功")
+            except Exception as e:
+                print(f"❌ GenAI Client 初始化失敗: {e}")
+        return self._genai_client
+
+    @property
+    def local_ai_client(self):
+        if self._local_ai_client is None and self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL'):
+            try:
+                self._local_ai_client = openai.AsyncOpenAI(
+                    base_url=self.secrets['LOCAL_AI_SERVER'],
+                    api_key=self.secrets.get('LOCAL_AI_API_KEY') or None,
+                )
+                print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
+            except Exception as e:
+                print(f"❌ Local AI Client 初始化失敗: {e}")
+        return self._local_ai_client
+
+    async def setup_hook(self):
+        async def _periodic_release():
+            while True:
+                await asyncio.sleep(300)
+                release_memory()
+        self._release_task = asyncio.create_task(_periodic_release())
 
     async def on_ready(self):
         print('-------------------------------------------')
@@ -1154,7 +1190,11 @@ if __name__ == "__main__":
             intents.message_content = True # 必須啟用才能讀取訊息內容
             intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
             
-            client = TaggedResponseBot(settings=settings_data, secrets=secrets_data, intents=intents)
+            # 少用記憶體：訊息快取 100 則（預設 1000）、不快取成員、不在啟動時抓全部成員
+            # （程式只靠訊息本身附帶的 member 資料取暱稱，沒有用到 get_member／guild.members）
+            client = TaggedResponseBot(settings=settings_data, secrets=secrets_data, intents=intents,
+                                       max_messages=100, member_cache_flags=discord.MemberCacheFlags.none(),
+                                       chunk_guilds_at_startup=False)
             client.run(secrets_data['TOKEN'])
             
     except KeyboardInterrupt:

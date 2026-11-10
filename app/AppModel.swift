@@ -23,6 +23,20 @@ final class AppModel: ObservableObject {
     @Published var minuteOffset: Int { didSet { UserDefaults.standard.set(minuteOffset, forKey: "minuteOffset") } }
     @Published var autoStartTagged: Bool { didSet { UserDefaults.standard.set(autoStartTagged, forKey: "autoStartTagged") } }
     @Published var showWindowOnLaunch: Bool { didSet { UserDefaults.standard.set(showWindowOnLaunch, forKey: "showWindowOnLaunch") } }
+    /// 渲染圖片用的瀏覽器：auto／chrome／edge／brave／chromium（auto 時不設定，交給 renderer.py 自動偵測或 bot.env 的 BOT_BROWSER）
+    @Published var browserChoice: String { didSet { UserDefaults.standard.set(browserChoice, forKey: "browserChoice") } }
+    static let browserOptions: [(id: String, title: String, app: String?)] = [
+        ("auto", "自動（Chrome → Edge → Brave → 內建 Chromium）", nil),
+        ("chrome", "Google Chrome", "Google Chrome"),
+        ("edge", "Microsoft Edge", "Microsoft Edge"),
+        ("brave", "Brave", "Brave Browser"),
+        ("chromium", "Playwright 內建 Chromium", nil),
+    ]
+    static func isInstalled(_ appName: String) -> Bool {
+        let fm = FileManager.default
+        return fm.fileExists(atPath: "/Applications/\(appName).app")
+            || fm.fileExists(atPath: NSHomeDirectory() + "/Applications/\(appName).app")
+    }
     @Published var logToDisk: Bool { didSet { UserDefaults.standard.set(logToDisk, forKey: "logToDisk") } }
     @Published var loginItem: Bool = SMAppService.mainApp.status == .enabled
     @Published var loginItemError: String?
@@ -43,6 +57,7 @@ final class AppModel: ObservableObject {
         minuteOffset = d.object(forKey: "minuteOffset") as? Int ?? 3
         autoStartTagged = d.object(forKey: "autoStartTagged") as? Bool ?? true
         logToDisk = d.bool(forKey: "logToDisk")
+        browserChoice = d.string(forKey: "browserChoice") ?? "auto"
         showWindowOnLaunch = d.object(forKey: "showWindowOnLaunch") as? Bool ?? true
         AppModel.current = self
         // 啟動時視為「這一輪已處理」，避免一開 App 就自動跑排程（會發總結打擾別人）
@@ -86,6 +101,7 @@ final class AppModel: ObservableObject {
     private func botEnv(extra: [String: String] = [:]) -> [String: String] {
         var e = extra
         e["BOT_ENV_FILE"] = EnvStore.file.path
+        if browserChoice != "auto" { e["BOT_BROWSER"] = browserChoice }
         return e
     }
 
@@ -167,7 +183,11 @@ final class AppModel: ObservableObject {
         return Calendar.current.date(byAdding: .hour, value: intervalHours, to: slot.time)
     }
 
+    private var tickCount = 0
+
     func tick() {
+        tickCount += 1
+        if tickCount % 20 == 0 { malloc_zone_pressure_relief(nil, 0) }   // 約每 10 分鐘把釋放的記憶體還給系統
         if autoStartTagged, envAvailability != .ready { refreshEnv() }
         if autoStartTagged, tagged.state == .stopped, !userStoppedTagged, envAvailability == .ready { startTagged() }
         guard scheduleEnabled, !server.isRunning, let slot = currentSlot(Date()) else { return }

@@ -22,6 +22,7 @@ struct MenuContent: View {
     @ObservedObject private var tagged: BotRunner
     @ObservedObject private var server: BotRunner
     @Environment(\.openWindow) private var openWindow
+    @State private var memory: MemoryUsage?   // 選單展開時取樣一次，不即時更新
 
     init(model: AppModel) {
         self.model = model
@@ -34,6 +35,12 @@ struct MenuContent: View {
             row(tagged.title, describe(tagged.state))
             row(server.title, describe(server.state))
             if let next = model.nextRun { Text("下次排程：\(timeFmt.string(from: next))").font(.caption).foregroundStyle(.secondary) }
+            if let m = memory {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("記憶體使用（展開時取樣）：\(m.summary)")
+                    Text(m.detail).foregroundStyle(.tertiary)
+                }.font(.caption).foregroundStyle(.secondary)
+            }
             if model.envAvailability != .ready { Text(model.envMessage).font(.caption).foregroundStyle(.orange) }
             Divider()
             if tagged.isRunning {
@@ -54,6 +61,10 @@ struct MenuContent: View {
         .buttonStyle(.plain)
         .padding(14)
         .frame(width: 250, alignment: .leading)
+        .onAppear { memory = MemoryUsage.snapshot() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            memory = MemoryUsage.snapshot()     // 選單視窗重新打開時再取樣一次
+        }
     }
 
     private func row(_ name: String, _ d: (text: String, color: Color)) -> some View {
@@ -126,6 +137,14 @@ struct StatusTab: View {
                 Toggle("開機時自動啟動", isOn: Binding(get: { model.loginItem }, set: { model.setLoginItem($0) }))
                 if let e = model.loginItemError { Text(e).font(.caption).foregroundStyle(.red) }
                 Toggle("開啟 App 時顯示主視窗", isOn: $model.showWindowOnLaunch)
+                Picker("渲染圖片的瀏覽器", selection: $model.browserChoice) {
+                    ForEach(AppModel.browserOptions, id: \.id) { o in
+                        let missing = o.app.map { !AppModel.isInstalled($0) } ?? false
+                        Text(o.title + (missing ? "（未安裝）" : "")).tag(o.id)
+                    }
+                }
+                Text("下次執行排程任務時生效。選擇「未安裝」的瀏覽器時會自動退回其他瀏覽器。")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("把日誌寫入硬碟（預設關閉）", isOn: $model.logToDisk)
                 Text("關閉時日誌只保留在記憶體（日誌分頁看得到最近 1000 行，結束 App 就消失），不會寫入 SSD。")
                     .font(.caption).foregroundStyle(.secondary)

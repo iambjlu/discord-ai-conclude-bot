@@ -19,7 +19,10 @@ struct DiscordBotApp: App {
         // 關閉主視窗 → 從 Dock 消失（onDisappear 在 Window 場景關閉時不一定會觸發，所以直接聽視窗事件）
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
             guard let w = note.object as? NSWindow, w.title == "Discord AI Bot" else { return }
-            DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
+            DispatchQueue.main.async {
+                NSApp.setActivationPolicy(.accessory)
+                malloc_zone_pressure_relief(nil, 0)     // 主視窗關閉後釋放介面用過的記憶體
+            }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
                                                object: nil, queue: .main) { _ in
