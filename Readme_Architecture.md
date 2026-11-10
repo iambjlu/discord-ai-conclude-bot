@@ -46,7 +46,7 @@ Discord 機器人，專為學習社群（StudentCrew）設計，結合 AI 摘要
 兩個 `BotRunner` 的總管、排程計時（每 60 秒檢查，tolerance 20 秒讓系統合併喚醒以省電，每約 10 分鐘呼叫 `malloc_zone_pressure_relief` 釋放記憶體）、`bot.env` 讀寫、偏好設定（UserDefaults，含 `logToDisk`、`logMaxLines`、`browserChoice`）。`browserChoice`（auto／chrome／edge／brave／chromium）非 auto 時以 `BOT_BROWSER` 傳給 Python。
 
 ### `Views.swift`
-主視窗：狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量；最上方是不可點的標題「Discord AI Conclude Bot」，其下是「開啟主視窗」，再依序為狀態列、標注回覆控制、立即執行排程任務、結束，點按任何按鈕後都會先收合彈窗（`closePanel()`）。日誌分頁以 `LazyVStack` 一行一個 `Text` 呈現（只排版可見的行；單行超過 2000 字截斷顯示），避免上千行接成單一 `Text` 造成開啟卡頓。
+主視窗：最上方是標題「Discord AI Conclude Bot」，其下為狀態、設定（含渲染瀏覽器下拉選單、「把日誌寫入硬碟」開關）、日誌、設定檔分頁。選單列面板展開時顯示記憶體使用量；最上方是不可點的標題「Discord AI Conclude Bot」，其下是「開啟主視窗」，再依序為狀態列、標注回覆控制、立即執行排程任務、結束，點按任何按鈕後都會先收合彈窗（`closePanel()`）。日誌分頁以 `LazyVStack` 一行一個 `Text` 呈現（只排版可見的行；單行超過 2000 字截斷顯示），避免上千行接成單一 `Text` 造成開啟卡頓。
 
 ### `MemoryUsage.swift`
 選單列展開時取樣一次（不即時更新）：用 `ps` 找出 App 的所有子行程，再以 `proc_pid_rusage` 的 `phys_footprint`（與活動監視器相同，不含與系統共用的部分）加總 App 本體與子行程（Python、瀏覽器）的記憶體，顯示在選單列面板。

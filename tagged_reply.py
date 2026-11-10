@@ -222,9 +222,9 @@ class TaggedResponseBot(discord.Client):
     def local_ai_unavailable_reason(self):
         """本地模型不能用的原因，三種分開講：已停用／未設定／初始化失敗（連線錯誤是呼叫時才發生，另外由「模型發生錯誤」回報）"""
         if not self.secrets.get('LOCAL_AI_ENABLED', True):
-            return "本地模型已停用（LOCAL_AI_ENABLED=false）"
+            return "本地模型已停用"
         if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
-            return "本地模型未設定（LOCAL_AI_SERVER 或 LOCAL_AI_MODEL 是空的）"
+            return "本地模型未設定"
         return f"本地模型初始化失敗：{self._local_ai_init_error or '未知原因'}"
 
     async def setup_hook(self):

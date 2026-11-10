@@ -90,10 +90,13 @@ struct MainWindow: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        TabView {
-            StatusTab(model: model).tabItem { Label("狀態", systemImage: "gauge") }
-            LogTab(model: model).tabItem { Label("日誌", systemImage: "text.alignleft") }
-            EnvTab(model: model).tabItem { Label("設定檔", systemImage: "key.icloud") }
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Discord AI Conclude Bot").font(.title2.bold())
+            TabView {
+                StatusTab(model: model).tabItem { Label("狀態", systemImage: "gauge") }
+                LogTab(model: model).tabItem { Label("日誌", systemImage: "text.alignleft") }
+                EnvTab(model: model).tabItem { Label("設定檔", systemImage: "key.icloud") }
+            }
         }
         .padding()
     }
@@ -112,7 +115,7 @@ struct StatusTab: View {
 
     var body: some View {
         Form {
-            Section("標注回覆（tagged_reply.py，常駐）") {
+            Section("標注回覆（常駐）") {
                 LabeledContent("狀態") { let d = describe(tagged.state); Text(d.text).foregroundStyle(d.color) }
                 HStack {
                     if tagged.isRunning {
@@ -124,7 +127,7 @@ struct StatusTab: View {
                 }
                 Toggle("App 開啟時自動啟動", isOn: $model.autoStartTagged)
             }
-            Section("排程任務（server.py，定時執行後自動結束）") {
+            Section("排程任務（定時執行後自動結束）") {
                 LabeledContent("狀態") { let d = describeServer(server.state, scheduled: model.scheduleEnabled); Text(d.text).foregroundStyle(d.color) }
                 Toggle("啟用定時排程", isOn: $model.scheduleEnabled)
                 Stepper("每 \(model.intervalHours) 小時一次", value: $model.intervalHours, in: 1...24)
@@ -142,7 +145,7 @@ struct StatusTab: View {
                     }.disabled(server.isRunning)
                     if server.isRunning { Button("中止") { model.stopServer() } }
                 }
-                Text("排程時間點為「小時是間隔倍數」；實際每項功能是否執行，仍由 server.py 內的 *_SCHEDULE_MODULO 設定判斷。")
+                Text("排程時間點為「小時是間隔倍數」；實際每項功能是否執行，仍由排程程式內的 *_SCHEDULE_MODULO 設定判斷。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("權限") {
