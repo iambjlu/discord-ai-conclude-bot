@@ -11,6 +11,12 @@ private func describe(_ s: BotRunner.State) -> (text: String, color: Color) {
     }
 }
 
+/// 排程任務是「跑完就結束」的，閒置時有開排程就顯示「等待下次排程」，而不是「已停止」
+private func describeServer(_ s: BotRunner.State, scheduled: Bool) -> (text: String, color: Color) {
+    if case .stopped = s { return scheduled ? ("等待下次排程", .secondary) : ("排程已關閉", .secondary) }
+    return describe(s)
+}
+
 private let timeFmt: DateFormatter = {
     let f = DateFormatter(); f.dateFormat = "M/d HH:mm"; return f
 }()
@@ -33,7 +39,7 @@ struct MenuContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             row(tagged.title, describe(tagged.state))
-            row(server.title, describe(server.state))
+            row(server.title, describeServer(server.state, scheduled: model.scheduleEnabled))
             if let next = model.nextRun { Text("下次排程：\(timeFmt.string(from: next))").font(.caption).foregroundStyle(.secondary) }
             if let m = memory {
                 VStack(alignment: .leading, spacing: 1) {
@@ -113,7 +119,7 @@ struct StatusTab: View {
                 Toggle("App 開啟時自動啟動", isOn: $model.autoStartTagged)
             }
             Section("排程任務（server.py，定時執行後自動結束）") {
-                LabeledContent("狀態") { let d = describe(server.state); Text(d.text).foregroundStyle(d.color) }
+                LabeledContent("狀態") { let d = describeServer(server.state, scheduled: model.scheduleEnabled); Text(d.text).foregroundStyle(d.color) }
                 Toggle("啟用定時排程", isOn: $model.scheduleEnabled)
                 Stepper("每 \(model.intervalHours) 小時一次", value: $model.intervalHours, in: 1...24)
                 Stepper("於整點後第 \(model.minuteOffset) 分鐘", value: $model.minuteOffset, in: 0...59)
