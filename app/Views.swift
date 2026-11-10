@@ -49,20 +49,21 @@ struct MenuContent: View {
             }
             if model.envAvailability != .ready { Text(model.envMessage).font(.caption).foregroundStyle(.orange) }
             Divider()
-            if tagged.isRunning {
-                Button("重新啟動標注回覆") { model.restartTagged() }
-                Button("停止標注回覆") { model.userStopTagged() }
-            } else {
-                Button("啟動標注回覆") { model.userStartTagged() }
-            }
-            Button(server.isRunning ? "排程任務執行中…" : "立即執行排程任務") { model.requestRunServer() }
-                .disabled(server.isRunning)
-            Divider()
             Button("開啟主視窗") {
+                closePanel()
                 NSApp.setActivationPolicy(.regular)
                 openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
             }
-            Button("結束") { NSApp.terminate(nil) }
+            if tagged.isRunning {
+                Button("重新啟動標注回覆") { closePanel(); model.restartTagged() }
+                Button("停止標注回覆") { closePanel(); model.userStopTagged() }
+            } else {
+                Button("啟動標注回覆") { closePanel(); model.userStartTagged() }
+            }
+            Button(server.isRunning ? "排程任務執行中…" : "立即執行排程任務") { closePanel(); model.requestRunServer() }
+                .disabled(server.isRunning)
+            Divider()
+            Button("結束") { closePanel(); NSApp.terminate(nil) }
         }
         .buttonStyle(.plain)
         .padding(14)
@@ -72,6 +73,9 @@ struct MenuContent: View {
             memory = MemoryUsage.snapshot()     // 選單視窗重新打開時再取樣一次
         }
     }
+
+    /// 點按任何按鈕後收合選單列彈窗
+    private func closePanel() { NSApp.keyWindow?.close() }
 
     private func row(_ name: String, _ d: (text: String, color: Color)) -> some View {
         HStack { Circle().fill(d.color).frame(width: 8, height: 8); Text(name); Spacer(); Text(d.text).foregroundStyle(.secondary).font(.caption) }
