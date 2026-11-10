@@ -38,6 +38,12 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Button("開啟主視窗") {
+                closePanel()
+                NSApp.setActivationPolicy(.regular)
+                openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
+            }
+            Divider()
             row(tagged.title, describe(tagged.state))
             row(server.title, describeServer(server.state, scheduled: model.scheduleEnabled))
             if let next = model.nextRun { Text("下次排程：\(timeFmt.string(from: next))").font(.caption).foregroundStyle(.secondary) }
@@ -49,11 +55,6 @@ struct MenuContent: View {
             }
             if model.envAvailability != .ready { Text(model.envMessage).font(.caption).foregroundStyle(.orange) }
             Divider()
-            Button("開啟主視窗") {
-                closePanel()
-                NSApp.setActivationPolicy(.regular)
-                openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
-            }
             if tagged.isRunning {
                 Button("重新啟動標注回覆") { closePanel(); model.restartTagged() }
                 Button("停止標注回覆") { closePanel(); model.userStopTagged() }
