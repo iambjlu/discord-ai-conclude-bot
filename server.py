@@ -7,6 +7,7 @@ sys.stdout.reconfigure(line_buffering=True)
 import subprocess
 import importlib.util
 import random
+import tempfile
 
 
 # --- 0. 基礎依賴檢查 (Helper) ---
@@ -73,6 +74,28 @@ import signal
 #              設定與環境 (FUNCTIONS)
 # ==========================================
 
+def _env_model_list(name):
+    """讀取 .env / 環境變數的模型清單，格式如 NAME="a","b" 或 NAME=a,b；未設定或為空則回傳 None
+    (python-dotenv 不支援 "a","b" 這種寫法，因此自行解析 .env)"""
+    raw = os.getenv(name)
+    env_path = Path(__file__).parent / ".env"
+    if raw is None and env_path.is_file():
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                if line.startswith(f"{name}="):
+                    raw = line.split("=", 1)[1]
+                    break
+        except Exception as e:
+            print(f"⚠️ 讀取 .env 的 {name} 失敗: {e}")
+    if not raw:
+        return None
+    items = [a or b or c for a, b, c in re.findall(r'"([^"]*)"|\'([^\']*)\'|([^,\s]+)', raw)]
+    items = [m.strip() for m in items if m.strip()]
+    return items or None
+
 def get_settings():
     """回傳使用者偏好的設定參數"""
     settings = {
@@ -125,7 +148,7 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-3.7-flash","gemini-3.5-flash-lite","gemini-2.5-flash","gemma-4-31b-it"], # 模型列表
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-flash-latest","gemini-flash-lite-latest","gemini-2.5-flash","gemma-4-31b-it"], # 模型列表
         # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-4-31b-it"], #測試用
         "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
         "BOT_NAME": "機器人",           # Bot 在對話歷史中的顯示名稱
@@ -137,6 +160,12 @@ def get_settings():
 **結論**\n(總結內容)\n
 """,
     }
+
+    # .env 覆蓋模型清單 (逗號分隔)，未設定才使用上方寫死的預設值
+    env_models = _env_model_list("SERVER_MODEL_LIST")
+    if env_models:
+        settings["GEMINI_MODEL_PRIORITY_LIST"] = env_models
+        print(f"ℹ️ 使用 .env 的 SERVER_MODEL_LIST: {env_models}")
 
     # Cloud Run Job 環境強制覆寫
     if os.getenv('CLOUD_RUN_JOB'):
@@ -675,7 +704,7 @@ async def run_ai_summary(client, settings, secrets):
                     if gemini_key:
                         print("   🤖 呼叫 Gemini 中...")
                         
-                        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-3.7-flash"])
+                        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-flash-latest"])
                         # 相容舊設定: 若只有 GEMINI_MODEL 則轉為 list
                         if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
                              param_model_list = [settings["GEMINI_MODEL"]]
@@ -1024,7 +1053,7 @@ async def run_daily_ai_summary(client, settings, secrets):
         
         print("   🤖 呼叫 Gemini 進行整日總結...")
         
-        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-3.7-flash"])
+        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-flash-latest"])
         if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
             param_model_list = [settings["GEMINI_MODEL"]]
         
@@ -1235,7 +1264,7 @@ async def run_link_screenshot(client, settings, secrets):
             print("   ⏳ 等待渲染...")
             await asyncio.sleep(25) # 等待渲染 (12s -> 15s)
 
-            filename = f"screenshot_temp_{idx}.png"
+            filename = os.path.join(tempfile.gettempdir(), f"screenshot_temp_{os.getpid()}_{idx}.png")
             await asyncio.to_thread(subprocess.run, ["xcrun", "simctl", "io", ipad_uuid, "screenshot", filename])
 
             # 關閉 Safari

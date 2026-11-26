@@ -95,9 +95,9 @@ LOCAL_AI_API_KEY=0000
 LOCAL_AI_IMAGE_SUPPORT=true
 
 # 覆蓋雲端模型清單 (可選，用逗號分隔、由左到右依序嘗試；未設定則使用程式內的預設值)
-SERVER_MODEL_LIST="gemini-4-hydrogen","gemini-3.8-flash","gemini-2.5-flash","gemini-3.5-flash-lite","gemma-4-31b-it"
-TAGGED_MODEL_LIST="gemma-4-31b-it","gemini-3.5-flash-lite"
-TAGGED_SMART_MODEL_LIST="gemini-2.5-flash","gemini-3.5-flash-lite"
+SERVER_MODEL_LIST="gemini-flash-latest","gemini-flash-lite-latest","gemini-2.5-flash","gemma-4-31b-it"
+TAGGED_MODEL_LIST="gemma-4-31b-it","gemini-flash-lite-latest"
+TAGGED_SMART_MODEL_LIST="gemini-2.5-flash"
 ```
 
 ---

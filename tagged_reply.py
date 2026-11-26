@@ -33,18 +33,66 @@ check_requirements()
 import discord
 import os
 import re
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from google import genai
-from google.genai import types
+import asyncio
+import gc
+import ctypes
+
+
+class _LazyModule:
+    """第一次用到才 import：google.genai 約 +33 MB、openai 約 +26 MB，待命時完全不載入"""
+    def __init__(self, name):
+        self._name, self._mod = name, None
+
+    def __getattr__(self, attr):
+        if self._mod is None:
+            self._mod = importlib.import_module(self._name)
+        return getattr(self._mod, attr)
+
+
+genai = _LazyModule("google.genai")
+types = _LazyModule("google.genai.types")
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+openai = _LazyModule("openai")
+
+
+def release_memory():
+    """把 Python 已釋放的記憶體還給系統（macOS）"""
+    gc.collect()
+    try:
+        ctypes.CDLL("/usr/lib/libSystem.B.dylib").malloc_zone_pressure_relief(None, 0)
+    except Exception:
+        pass
 import aiohttp
 import base64
 
+def _env_model_list(name):
+    """讀取 .env / 環境變數的模型清單，格式如 NAME="a","b" 或 NAME=a,b；未設定或為空則回傳 None
+    (python-dotenv 不支援 "a","b" 這種寫法，因此自行解析 .env)"""
+    raw = os.getenv(name)
+    env_path = Path(__file__).parent / ".env"
+    if raw is None and env_path.is_file():
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                if line.startswith(f"{name}="):
+                    raw = line.split("=", 1)[1]
+                    break
+        except Exception as e:
+            print(f"⚠️ 讀取 .env 的 {name} 失敗: {e}")
+    if not raw:
+        return None
+    items = [a or b or c for a, b, c in re.findall(r'"([^"]*)"|\'([^\']*)\'|([^,\s]+)', raw)]
+    items = [m.strip() for m in items if m.strip()]
+    return items or None
+
 def get_settings():
     """回傳使用者偏好的設定參數"""
-    return {
+    settings = {
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
@@ -82,10 +130,10 @@ def get_settings():
 
 以下是近期對話歷史（僅供背景參考）：
 {context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
+        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it","gemini-flash-lite-latest"],
         "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemini-3.5-flash-lite"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -98,6 +146,15 @@ def get_settings():
         "TXT_ATTACHMENT_CONTEXT_CHARS": 100,   # 非標注/回覆(一般歷史)訊息的 txt 附件，僅預覽這麼多字
         "HTML_ATTACHMENT_MAX_CHARS": 20000,    # 標注/回覆訊息的 html 附件，完整讀取上限
     }
+
+    # .env 覆蓋模型清單 (逗號分隔)，未設定才使用上方寫死的預設值
+    for env_key, setting_key in (("TAGGED_MODEL_LIST", "MODEL_PRIORITY_LIST"),
+                                 ("TAGGED_SMART_MODEL_LIST", "SMARTER_MODEL_PRIORITY_LIST")):
+        env_list = _env_model_list(env_key)
+        if env_list:
+            settings[setting_key] = env_list
+            print(f"ℹ️ 使用 .env 的 {env_key}: {env_list}")
+    return settings
 
 def get_secrets():
     """
@@ -120,21 +177,26 @@ def get_secrets():
     secrets['GEMINI_API_KEY'] = gemini_key
 
     # 3. Local AI Server (OpenAI Compatible)
-    local_server = os.getenv('LOCAL_AI_SERVER', '')
-    local_model = os.getenv('LOCAL_AI_MODEL', '')
+    local_enabled = os.getenv('LOCAL_AI_ENABLED', 'true').lower() in ('true', '1', 'yes')
+    local_server = os.getenv('LOCAL_AI_SERVER', '') if local_enabled else ''
+    local_model = os.getenv('LOCAL_AI_MODEL', '') if local_enabled else ''
     local_api_key = os.getenv('LOCAL_AI_API_KEY', '')
     local_image_support = os.getenv('LOCAL_AI_IMAGE_SUPPORT', 'true').lower() in ('true', '1', 'yes')
     secrets['LOCAL_AI_SERVER'] = local_server
     secrets['LOCAL_AI_MODEL'] = local_model
     secrets['LOCAL_AI_API_KEY'] = local_api_key
     secrets['LOCAL_AI_IMAGE_SUPPORT'] = local_image_support
-    if not local_server:
-        print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
-    if not local_model:
-        print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
-    if not local_api_key:
-        print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
-    if not local_image_support:
+    secrets['LOCAL_AI_ENABLED'] = local_enabled
+    if not local_enabled:
+        print("ℹ️ 本地模型已停用 (LOCAL_AI_ENABLED=false)")
+    else:
+        if not local_server:
+            print("⚠️ 警告: 未設定 LOCAL_AI_SERVER")
+        if not local_model:
+            print("⚠️ 警告: 未設定 LOCAL_AI_MODEL")
+        if not local_api_key:
+            print("⚠️ 警告: 未設定 LOCAL_AI_API_KEY")
+    if local_enabled and not local_image_support:
         print("ℹ️ 本地模型已關閉圖片辨識功能 (LOCAL_AI_IMAGE_SUPPORT=false)")
 
     return secrets
@@ -147,40 +209,67 @@ class TaggedResponseBot(discord.Client):
         super().__init__(*args, **kwargs)
         self.settings = settings
         self.secrets = secrets
-        self.genai_client = None
-        
-        # 初始化 GenAI Client
-        if self.secrets['GEMINI_API_KEY']:
-            try:
-                self.genai_client = genai.Client(api_key=self.secrets['GEMINI_API_KEY'])
-                print("✅ GenAI Client 初始化成功")
-            except Exception as e:
-                print(f"❌ GenAI Client 初始化失敗: {e}")
-        else:
+        # AI Client 延遲到第一次需要時才建立（見下方 genai_client／local_ai_client），待命時不載入 SDK
+        self._genai_client = None
+        self._local_ai_client = None
+        self._local_ai_init_error = None
+        self._busy_ids = set()      # 正在處理中的被提及訊息（狀態列圖示用）
+        if not self.secrets['GEMINI_API_KEY']:
             print("⚠️ 警告: 未設定 GEMINI_API_KEY")
+        if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
+            print("ℹ️ 本地模型未啟用（已停用或未設定）")
 
-        # 初始化 Local AI Client (OpenAI Compatible)
-        self.local_ai_client = None
-        if self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL'):
-            try:
-                api_key = self.secrets.get('LOCAL_AI_API_KEY') or None
-                self.local_ai_client = AsyncOpenAI(
-                    base_url=self.secrets['LOCAL_AI_SERVER'],
-                    api_key=api_key,
-                )
-                print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
-            except Exception as e:
-                print(f"❌ Local AI Client 初始化失敗: {e}")
-        else:
-            print("⚠️ 警告: 未設定 LOCAL_AI_SERVER 或 LOCAL_AI_MODEL")
-
-        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])
+        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
 
         # 本地模型圖片支援設定：secrets 可覆蓋 settings 的預設值
         self.local_image_support = self.secrets.get('LOCAL_AI_IMAGE_SUPPORT', self.settings.get('LOCAL_AI_IMAGE_SUPPORT', True))
         if not self.local_image_support:
             print("ℹ️ 本地模型圖片辨識功能已關閉")
+
+    @property
+    def genai_client(self):
+        if self._genai_client is None and self.secrets['GEMINI_API_KEY']:
+            try:
+                self._genai_client = genai.Client(api_key=self.secrets['GEMINI_API_KEY'])
+                print("✅ GenAI Client 初始化成功")
+            except Exception as e:
+                print(f"❌ GenAI Client 初始化失敗: {e}")
+        return self._genai_client
+
+    @property
+    def local_ai_client(self):
+        if self._local_ai_client is None and self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL'):
+            try:
+                self._local_ai_client = openai.AsyncOpenAI(
+                    base_url=self.secrets['LOCAL_AI_SERVER'],
+                    api_key=self.secrets.get('LOCAL_AI_API_KEY') or None,
+                )
+                print(f"✅ Local AI Client 初始化成功 -> {self.secrets['LOCAL_AI_SERVER']} (模型: {self.secrets['LOCAL_AI_MODEL']})")
+            except Exception as e:
+                self._local_ai_init_error = str(e)
+                print(f"❌ Local AI Client 初始化失敗: {e}")
+        return self._local_ai_client
+
+    def local_ai_unavailable_reason(self):
+        """本地模型不能用的原因，三種分開講：已停用／未設定／初始化失敗（連線錯誤是呼叫時才發生，另外由「模型發生錯誤」回報）"""
+        if not self.secrets.get('LOCAL_AI_ENABLED', True):
+            return "本地模型已停用"
+        if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
+            return "本地模型未設定"
+        return f"本地模型初始化失敗：{self._local_ai_init_error or '未知原因'}"
+
+    async def setup_hook(self):
+        # 只在處理過被提及的訊息後、安靜 60 秒才釋放一次記憶體；完全閒置時沒有任何定時喚醒（省電）
+        self._dirty = asyncio.Event()
+
+        async def _release_when_idle():
+            while True:
+                await self._dirty.wait()
+                await asyncio.sleep(60)
+                self._dirty.clear()
+                release_memory()
+        self._release_task = asyncio.create_task(_release_when_idle())
 
     async def on_ready(self):
         print('-------------------------------------------')
@@ -287,6 +376,16 @@ class TaggedResponseBot(discord.Client):
         return first_result
 
     async def on_message(self, message):
+        """包一層：處理被提及的訊息期間，回報 [bot-state] busy／idle 給 App 的狀態列圖示"""
+        try:
+            await self._on_message_impl(message)
+        finally:
+            if message.id in self._busy_ids:
+                self._busy_ids.discard(message.id)
+                if not self._busy_ids:
+                    print("[bot-state] idle")
+
+    async def _on_message_impl(self, message):
         # 1. 忽略自己的訊息
         if message.author == self.user:
             return
@@ -313,6 +412,10 @@ class TaggedResponseBot(discord.Client):
                 pass
 
         if is_triggered:
+            self._dirty.set()
+            self._busy_ids.add(message.id)
+            if len(self._busy_ids) == 1:
+                print("[bot-state] busy")
             # 3.1 檢查是否有特殊執行指令 (部署等) - 收到訊息馬上檢查，不調閱歷史
             content_clean = message.content.replace(f'<@{self.user.id}>', '').replace(f'<@!{self.user.id}>', '').strip()
             
@@ -516,15 +619,17 @@ class TaggedResponseBot(discord.Client):
                         # 優先順序：/本地模型 > /聰明模型 > 一般模式
                         if is_local_model_mode:
                             if not self.local_ai_client:
-                                await self.safe_reply(message, "❌ 無法辨識圖片：本地 AI 服務未設定或初始化失敗。")
+                                await self.safe_reply(message, f"❌ 無法辨識圖片：{self.local_ai_unavailable_reason()}")
                                 return
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
                         elif is_smarter_mode:
-                            model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
+                            image_model_list = list(self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"]))
+                            model_name = image_model_list[0]
                             use_local = False
                         else:
-                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])[0]
+                            image_model_list = list(self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"]))
+                            model_name = image_model_list[0]
                             use_local = False
 
                         print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
@@ -586,15 +691,33 @@ class TaggedResponseBot(discord.Client):
 
                             contents = [prompt_text, image_part]
 
-                            response = await self.genai_client.aio.models.generate_content(
-                                model=model_name,
-                                contents=contents,
-                                config=types.GenerateContentConfig(
-                                    temperature=0.2 # 圖片辨識稍微精確點
-                                )
-                            )
+                            # 依序嘗試模型清單，失敗則回退到下一個
+                            response = None
+                            image_last_error = None
+                            for candidate in image_model_list:
+                                try:
+                                    print(f"   🤖 嘗試使用模型辨識: {candidate}")
+                                    response = await self.genai_client.aio.models.generate_content(
+                                        model=candidate,
+                                        contents=contents,
+                                        config=types.GenerateContentConfig(
+                                            temperature=0.2 # 圖片辨識稍微精確點
+                                        )
+                                    )
+                                    if response.text:
+                                        model_name = candidate
+                                        break
+                                    print(f"   ⚠️ 模型 {candidate} 未回傳文字，嘗試下一個")
+                                except Exception as img_e:
+                                    print(f"   ⚠️ 模型 {candidate} 失敗: {img_e}")
+                                    image_last_error = img_e
+                                    response = None
+                                    continue
 
-                            if response.text:
+                            if response is None and image_last_error is not None:
+                                raise image_last_error
+
+                            if response is not None and response.text:
                                 if "gemini" in model_name.lower():
                                     footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemini AI 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
                                 else:
@@ -618,7 +741,25 @@ class TaggedResponseBot(discord.Client):
 
                     except Exception as e:
                         print(f"❌ 圖片辨識失敗: {e}")
-                        await self.safe_reply(message, f"❌ 圖片辨識發生錯誤: {e}")
+                        error_str = str(e)
+                        if "429" in error_str or "Resource has been exhausted" in error_str:
+                            await self.safe_reply(
+                                message,
+                                "# ⚠️ 模型發生錯誤\n"
+                                "我的配額被你們問爆了啦🫠"
+                                "你們可以一分鐘後或是明天重試看看嗎🥺\n\n"
+                                f"```json\n{error_str}\n```"
+                            )
+                        elif "503" in error_str or "Service Unavailable" in error_str or "UNAVAILABLE" in error_str:
+                            await self.safe_reply(
+                                message,
+                                "# ⚠️ 模型發生錯誤\n"
+                                "Google服務器快被世界上眾多使用者問爆了🫠\n"
+                                "你們可能要重試一下🥺\n"
+                                f"```json\n{error_str}\n```"
+                            )
+                        else:
+                            await self.safe_reply(message, f"❌ 圖片辨識發生錯誤: {e}")
                 
                 return # 結束，不繼續執行下方的聊天邏輯
 
@@ -907,7 +1048,7 @@ class TaggedResponseBot(discord.Client):
                     if is_local_model_mode:
                         # === 本地模型模式（支援圖片辨識）===
                         if not self.local_ai_client:
-                            await self.safe_reply(message, "❌ 無法回應：本地 AI 服務未設定或初始化失敗。")
+                            await self.safe_reply(message, f"❌ 無法回應：{self.local_ai_unavailable_reason()}")
                             return
 
                         model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
@@ -1154,7 +1295,11 @@ if __name__ == "__main__":
             intents.message_content = True # 必須啟用才能讀取訊息內容
             intents.members = True # 必須啟用才能正確讀取伺服器暱稱 (需在 Developer Portal 開啟 Server Members Intent)
             
-            client = TaggedResponseBot(settings=settings_data, secrets=secrets_data, intents=intents)
+            # 少用記憶體：訊息快取 100 則（預設 1000）、不快取成員、不在啟動時抓全部成員
+            # （程式只靠訊息本身附帶的 member 資料取暱稱，沒有用到 get_member／guild.members）
+            client = TaggedResponseBot(settings=settings_data, secrets=secrets_data, intents=intents,
+                                       max_messages=100, member_cache_flags=discord.MemberCacheFlags.none(),
+                                       chunk_guilds_at_startup=False)
             client.run(secrets_data['TOKEN'])
             
     except KeyboardInterrupt:
