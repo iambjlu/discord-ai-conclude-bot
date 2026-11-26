@@ -33,6 +33,7 @@ check_requirements()
 import discord
 import os
 import re
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from google import genai
 from google.genai import types
@@ -42,9 +43,31 @@ from openai import AsyncOpenAI
 import aiohttp
 import base64
 
+def _env_model_list(name):
+    """讀取 .env / 環境變數的模型清單，格式如 NAME="a","b" 或 NAME=a,b；未設定或為空則回傳 None
+    (python-dotenv 不支援 "a","b" 這種寫法，因此自行解析 .env)"""
+    raw = os.getenv(name)
+    env_path = Path(__file__).parent / ".env"
+    if raw is None and env_path.is_file():
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                if line.startswith(f"{name}="):
+                    raw = line.split("=", 1)[1]
+                    break
+        except Exception as e:
+            print(f"⚠️ 讀取 .env 的 {name} 失敗: {e}")
+    if not raw:
+        return None
+    items = [a or b or c for a, b, c in re.findall(r'"([^"]*)"|\'([^\']*)\'|([^,\s]+)', raw)]
+    items = [m.strip() for m in items if m.strip()]
+    return items or None
+
 def get_settings():
     """回傳使用者偏好的設定參數"""
-    return {
+    settings = {
         "AUTHOR_NAME_LIMIT": 4,          # 名字顯示長度
         "SHOW_DATE": False,              # 是否顯示日期
         "SHOW_SECONDS": False,           # 是否顯示秒數
@@ -82,7 +105,7 @@ def get_settings():
 
 以下是近期對話歷史（僅供背景參考）：
 {context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it"],
+        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it","gemini-3.5-flash-lite"],
         "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
         "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemini-3.5-flash-lite"],
@@ -98,6 +121,15 @@ def get_settings():
         "TXT_ATTACHMENT_CONTEXT_CHARS": 100,   # 非標注/回覆(一般歷史)訊息的 txt 附件，僅預覽這麼多字
         "HTML_ATTACHMENT_MAX_CHARS": 20000,    # 標注/回覆訊息的 html 附件，完整讀取上限
     }
+
+    # .env 覆蓋模型清單 (逗號分隔)，未設定才使用上方寫死的預設值
+    for env_key, setting_key in (("TAGGED_MODEL_LIST", "MODEL_PRIORITY_LIST"),
+                                 ("TAGGED_SMART_MODEL_LIST", "SMARTER_MODEL_PRIORITY_LIST")):
+        env_list = _env_model_list(env_key)
+        if env_list:
+            settings[setting_key] = env_list
+            print(f"ℹ️ 使用 .env 的 {env_key}: {env_list}")
+    return settings
 
 def get_secrets():
     """
@@ -521,10 +553,12 @@ class TaggedResponseBot(discord.Client):
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
                         elif is_smarter_mode:
-                            model_name = self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"])[0]
+                            image_model_list = list(self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"]))
+                            model_name = image_model_list[0]
                             use_local = False
                         else:
-                            model_name = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"])[0]
+                            image_model_list = list(self.settings.get("MODEL_PRIORITY_LIST", ["gemini-3.5-flash-lite","gemma-4-31b-it"]))
+                            model_name = image_model_list[0]
                             use_local = False
 
                         print(f"   🤖 使用模型辨識: {model_name} (Prompt: {prompt_text})")
@@ -586,15 +620,33 @@ class TaggedResponseBot(discord.Client):
 
                             contents = [prompt_text, image_part]
 
-                            response = await self.genai_client.aio.models.generate_content(
-                                model=model_name,
-                                contents=contents,
-                                config=types.GenerateContentConfig(
-                                    temperature=0.2 # 圖片辨識稍微精確點
-                                )
-                            )
+                            # 依序嘗試模型清單，失敗則回退到下一個
+                            response = None
+                            image_last_error = None
+                            for candidate in image_model_list:
+                                try:
+                                    print(f"   🤖 嘗試使用模型辨識: {candidate}")
+                                    response = await self.genai_client.aio.models.generate_content(
+                                        model=candidate,
+                                        contents=contents,
+                                        config=types.GenerateContentConfig(
+                                            temperature=0.2 # 圖片辨識稍微精確點
+                                        )
+                                    )
+                                    if response.text:
+                                        model_name = candidate
+                                        break
+                                    print(f"   ⚠️ 模型 {candidate} 未回傳文字，嘗試下一個")
+                                except Exception as img_e:
+                                    print(f"   ⚠️ 模型 {candidate} 失敗: {img_e}")
+                                    image_last_error = img_e
+                                    response = None
+                                    continue
 
-                            if response.text:
+                            if response is None and image_last_error is not None:
+                                raise image_last_error
+
+                            if response is not None and response.text:
                                 if "gemini" in model_name.lower():
                                     footer_model_text = f"> -# 🤖 圖片辨識由 Google Gemini AI 多模態大型語言模型「{model_name}」驅動。\n> -# 💡 使用「`/聰明模型`」以嘗試使用此模型。"
                                 else:
@@ -618,7 +670,25 @@ class TaggedResponseBot(discord.Client):
 
                     except Exception as e:
                         print(f"❌ 圖片辨識失敗: {e}")
-                        await self.safe_reply(message, f"❌ 圖片辨識發生錯誤: {e}")
+                        error_str = str(e)
+                        if "429" in error_str or "Resource has been exhausted" in error_str:
+                            await self.safe_reply(
+                                message,
+                                "# ⚠️ 模型發生錯誤\n"
+                                "我的配額被你們問爆了啦🫠"
+                                "你們可以一分鐘後或是明天重試看看嗎🥺\n\n"
+                                f"```json\n{error_str}\n```"
+                            )
+                        elif "503" in error_str or "Service Unavailable" in error_str or "UNAVAILABLE" in error_str:
+                            await self.safe_reply(
+                                message,
+                                "# ⚠️ 模型發生錯誤\n"
+                                "Google服務器快被世界上眾多使用者問爆了🫠\n"
+                                "你們可能要重試一下🥺\n"
+                                f"```json\n{error_str}\n```"
+                            )
+                        else:
+                            await self.safe_reply(message, f"❌ 圖片辨識發生錯誤: {e}")
                 
                 return # 結束，不繼續執行下方的聊天邏輯
 

@@ -116,7 +116,7 @@ done
 echo ""
 
 echo "== 磁碟資訊 ============================"
-diskutil list physical
+diskutil list physical | awk 'BEGIN{RS="";ORS="\\n\\n"} {n=gsub(/\\n[ ]+[0-9]+:/,"&"); if (!($0 ~ /EFI EFI/ && n<=2)) print}'
 echo ""
 
 echo "== 詳細硬體與軟體報告 ==================="
