@@ -5,6 +5,43 @@
 import asyncio
 import base64
 from playwright.async_api import async_playwright
+
+# 少寫硬碟：關掉磁碟快取、當機回報、背景網路與同步（new_context 本身是無痕，Cookies／歷史只在記憶體）
+LEAN_CHROMIUM_ARGS = [
+    "--disk-cache-size=1", "--media-cache-size=1",
+    "--disable-breakpad", "--disable-crash-reporter",
+    "--disable-background-networking", "--disable-sync", "--no-first-run",
+]
+
+# 優先使用系統已安裝的瀏覽器（字型渲染較好、也不用另外下載 Chromium）。
+# 環境變數 BOT_BROWSER 可指定：chrome / edge / brave / chromium，或瀏覽器執行檔的完整路徑；未設定則依序自動偵測。
+_SYSTEM_BROWSERS = {
+    "chrome": {"channel": "chrome"},
+    "edge": {"channel": "msedge"},
+    "brave": {"path": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"},
+}
+
+
+async def launch_browser(p):
+    choice = os.environ.get("BOT_BROWSER", "").strip()
+    if choice.lower() == "chromium":
+        candidates = []
+    elif choice.lower() in _SYSTEM_BROWSERS:
+        candidates = [_SYSTEM_BROWSERS[choice.lower()]]
+    elif choice:
+        candidates = [{"path": choice}]
+    else:
+        candidates = list(_SYSTEM_BROWSERS.values())
+    for c in candidates:
+        try:
+            if "channel" in c:
+                return await p.chromium.launch(channel=c["channel"], headless=True, args=LEAN_CHROMIUM_ARGS)
+            if os.path.exists(c["path"]):
+                return await p.chromium.launch(executable_path=c["path"], headless=True, args=LEAN_CHROMIUM_ARGS)
+        except Exception:
+            continue
+    return await p.chromium.launch(headless=True, args=LEAN_CHROMIUM_ARGS)   # 最後退回 Playwright 的 Chromium
+
 import os
 import io
 
@@ -336,10 +373,7 @@ class ImageGenerator:
         """
 
         async with async_playwright() as p:
-            try:
-                browser = await p.chromium.launch(channel="chrome", headless=True) # Try system Chrome first for improved font rendering
-            except:
-                browser = await p.chromium.launch(headless=True)
+            browser = await launch_browser(p)
                 
             # 設定語系與時區
             context = await browser.new_context(
@@ -702,10 +736,7 @@ class ImageGenerator:
         """
         
         async with async_playwright() as p:
-            try:
-                browser = await p.chromium.launch(channel="chrome", headless=True)
-            except:
-                browser = await p.chromium.launch(headless=True)
+            browser = await launch_browser(p)
                 
             # Use explicit viewport size that is large enough for the content to layout horizontally
             # width ≈ 3 * 500 + 2 * 30 (gap) + 2 * 60 (padding) ≈ 1680. 

@@ -5,8 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2764344e-a518-44c0-ab07-2c0261bf22c6" name="Changes" comment="修復內容                                                                                                                                                             &#10;                                                                                                                                                                       &#10;  問題根因：message.reply() 在原始訊息已被刪除（或在某些情況下無法解析）時，Discord API 會回傳 400 Bad Request: Unknown                                                &#10;  message，導致例外被拋出，而例外處理程式碼又再次呼叫 message.reply() 造成連鎖失敗。                                                                                   &#10;                                                                                                                                                                       &#10;  在 tagged_reply.py:250 新增了 safe_reply 靜態方法：先嘗試 message.reply()，若捕捉到錯誤碼 50035（Unknown message）就自動改用 message.channel.send()                  &#10;  補發訊息，不會再拋例外中斷流程。                                                                                                                                     &#10;                                                                                                                                                                       &#10;  已將檔案中所有的 message.reply(...) 呼叫（共 16 處，涵蓋 AI 摘要回覆、圖片辨識回覆、錯誤訊息等）替換為 self.safe_reply(message, ...)。">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/discord-ai-conclude-bot.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/discord-ai-conclude-bot.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -17,6 +18,19 @@
     <execution />
   </component>
   <component name="Git.Settings">
+    <excluded-from-favorite>
+      <branch-storage>
+        <map>
+          <entry type="LOCAL">
+            <value>
+              <list>
+                <branch-info repo="$PROJECT_DIR$" source="main" />
+              </list>
+            </value>
+          </entry>
+        </map>
+      </branch-storage>
+    </excluded-from-favorite>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo">{
@@ -39,7 +53,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "com.google.cloudcode.ide_session_index": "20260814_0001",
+    "com.google.cloudcode.ide_session_index": "20261111_0001",
     "dart.analysis.tool.window.visible": "false",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
@@ -81,6 +95,14 @@
       <workItem from="1786512397106" duration="5974000" />
       <workItem from="1786686615786" duration="176000" />
       <workItem from="1786788429508" duration="19000" />
+      <workItem from="1787561873738" duration="28000" />
+      <workItem from="1792873590892" duration="117000" />
+      <workItem from="1794323028169" duration="43000" />
+      <workItem from="1794323907339" duration="252000" />
+      <workItem from="1794324239638" duration="5000" />
+      <workItem from="1794324820110" duration="21000" />
+      <workItem from="1794326360720" duration="821000" />
+      <workItem from="1794329210470" duration="1147000" />
     </task>
     <task id="LOCAL-00001" summary="model update">
       <option name="closed" value="true" />

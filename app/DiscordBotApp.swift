@@ -1,0 +1,106 @@
+// app/DiscordBotApp.swift
+// Discord AI Conclude Bot 選單列 App（同時保留 Dock 圖示）。
+import AppKit
+import SwiftUI
+
+@main
+struct DiscordBotApp: App {
+    @StateObject private var model = AppModel()
+    private static var termSource: DispatchSourceSignal?
+
+    init() {
+        signal(SIGPIPE, SIG_IGN)
+        // 收到 SIGTERM（pkill、關機等）時也要先收掉子行程，否則 Python 會變成孤兒繼續跑
+        signal(SIGTERM, SIG_IGN)
+        let term = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        term.setEventHandler { NSApp.terminate(nil) }
+        term.resume()
+        Self.termSource = term
+        // 關閉主視窗 → 從 Dock 消失（onDisappear 在 Window 場景關閉時不一定會觸發，所以直接聽視窗事件）
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { note in
+            guard let w = note.object as? NSWindow, w.title == "Discord AI Bot" else { return }
+            DispatchQueue.main.async {
+                NSApp.setActivationPolicy(.accessory)
+                malloc_zone_pressure_relief(nil, 0)     // 主視窗關閉後釋放介面用過的記憶體
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+                                               object: nil, queue: .main) { _ in
+            // 由 Timer/Task 裡的 model 不方便取得，所以走全域參考
+            MainActor.assumeIsolated { AppModel.current?.shutdown() }
+        }
+    }
+
+    var body: some Scene {
+        MenuBarExtra {
+            MenuContent(model: model)
+        } label: {
+            MenuIcon(model: model)
+        }
+        .menuBarExtraStyle(.window)
+
+        Window("Discord AI Bot", id: "main") {
+            MainWindow(model: model)
+                .frame(minWidth: 680, minHeight: 480)
+                // 平常只在選單列（accessory）；主視窗開著時才出現在 Dock，關掉就消失
+                .onAppear {
+                    NSApp.setActivationPolicy(.regular)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .onDisappear { NSApp.setActivationPolicy(.accessory) }
+        }
+        .defaultSize(width: 820, height: 600)
+    }
+}
+
+extension AppModel {
+    static weak var current: AppModel?
+}
+
+/// 選單列圖示；App 一啟動就會建立，順便在這裡依設定開主視窗（只做一次）並註冊全域參考。
+struct MenuIcon: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject private var tagged: BotRunner
+    @ObservedObject private var server: BotRunner
+    @Environment(\.openWindow) private var openWindow
+    @State private var handled = false
+
+    init(model: AppModel) {
+        self.model = model
+        _tagged = ObservedObject(wrappedValue: model.tagged)
+        _server = ObservedObject(wrappedValue: model.server)
+    }
+
+    var body: some View {
+        Image(systemName: symbol)
+            .task {
+                guard !handled else { return }
+                handled = true
+                AppModel.current = model
+                model.requestPermissions()      // 第一次開啟／換版本後第一次開啟：先把權限要過一遍
+                if model.autoStartTagged { model.userStartTagged() }
+                if model.showWindowOnLaunch {
+                    NSApp.setActivationPolicy(.regular)
+                    openWindow(id: "main")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+    }
+
+    /// 狀態列圖示（由高到低判斷）：工作中 > 啟動中 > 排程×標注 的四種組合
+    private var symbol: String {
+        if server.isRunning || tagged.isBusy { return "text.bubble.badge.sparkles.fill" }   // 正在工作
+        switch tagged.state {
+        case .backoff: return "ellipsis.bubble.fill"                                       // 重啟中（也算啟動中）
+        case .running where !tagged.isReady: return "ellipsis.bubble.fill"                  // 正在啟動
+        default: break
+        }
+        let taggedOn = tagged.state == .running
+        switch (model.scheduleEnabled, taggedOn) {
+        case (true, true): return "text.bubble.badge.clock.fill"    // 有排程、閒置、標注開啟
+        case (true, false): return "text.bubble.badge.clock"        // 有排程、閒置、標注未開
+        case (false, true): return "text.bubble.fill"               // 無排程、標注開啟
+        case (false, false): return "text.bubble"                   // 都沒開
+        }
+    }
+}

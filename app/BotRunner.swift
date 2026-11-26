@@ -1,0 +1,216 @@
+// app/BotRunner.swift
+// 管理一個 Python 腳本子行程：啟動、停止、（常駐型）當掉自動重啟，並收集日誌。
+import Foundation
+
+@MainActor
+final class BotRunner: ObservableObject, Identifiable {
+    enum State: Equatable {
+        case stopped
+        case running
+        case backoff(Int)          // 幾秒後重啟
+        case finished(Int32)       // 一次性腳本跑完（exit code）
+    }
+
+    let id: String
+    let title: String
+    let script: String
+    let keepAlive: Bool            // true＝常駐（當掉自動重啟）；false＝一次性
+    let maxRuntime: TimeInterval?  // 一次性腳本的逾時上限
+
+    @Published private(set) var state: State = .stopped
+    @Published private(set) var logs: [String] = []
+    @Published private(set) var lastStart: Date?
+    /// 常駐 bot 是否已登入 Discord（偵測 "Bot 已登入" 這行日誌）；啟動中為 false
+    @Published private(set) var isReady = false
+    /// 常駐 bot 正在處理被提及的訊息（偵測 tagged_reply 印出的 [bot-state] busy／idle 標記）
+    @Published private(set) var isBusy = false
+
+    private var process: Process?
+    private var wantRunning = false
+    private var failures = 0
+    private var outBuf = Data()
+    private var retryTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+    private var envProvider: () -> [String: String] = { [:] }
+    /// 記憶體中最多保留幾行日誌（設定頁可調；0＝不保留）
+    static var maxLines: Int { UserDefaults.standard.object(forKey: "logMaxLines") as? Int ?? 500 }
+    private let logFile: URL
+    private var logHandle: FileHandle?
+    private var logBytes = 0
+
+    /// 是否把日誌寫進硬碟（預設關閉，只留在記憶體；為了減少 SSD 寫入）
+    static var diskLogging: Bool { UserDefaults.standard.bool(forKey: "logToDisk") }
+
+    init(id: String, title: String, script: String, keepAlive: Bool, maxRuntime: TimeInterval? = nil) {
+        self.id = id; self.title = title; self.script = script
+        self.keepAlive = keepAlive; self.maxRuntime = maxRuntime
+        logFile = BotRunner.logDir.appendingPathComponent("\(id).log")
+    }
+
+    static var logDir: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiscordAIConcludeBot")
+    }
+
+    var isRunning: Bool { process?.isRunning ?? false }
+
+    func start(env: @escaping () -> [String: String]) {
+        envProvider = env
+        wantRunning = true
+        launch()
+    }
+
+    func stop() {
+        wantRunning = false
+        retryTask?.cancel(); timeoutTask?.cancel()
+        process?.terminate()
+        if process == nil { state = .stopped }
+    }
+
+    func restart(env: @escaping () -> [String: String]) {
+        stop()
+        Task { @MainActor in
+            for _ in 0..<40 where self.isRunning { try? await Task.sleep(nanoseconds: 100_000_000) }
+            self.start(env: env)
+        }
+    }
+
+    /// App 結束時用：送 SIGTERM 並最多等 3 秒，逾時強殺
+    func terminateAndWait() {
+        wantRunning = false
+        guard let p = process, p.isRunning else { return }
+        p.terminate()
+        let deadline = Date().addingTimeInterval(3)
+        while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+    }
+
+    func clearLogs() { logs.removeAll() }
+
+    /// 上限調小時立刻裁掉多的
+    func trimLogs() {
+        let limit = BotRunner.maxLines
+        if logs.count > limit { logs.removeFirst(logs.count - limit) }
+    }
+
+    // MARK: - 內部
+
+    private func launch() {
+        guard process == nil else { return }
+        guard let core = Bundle.main.resourceURL?.appendingPathComponent("core/run.sh"),
+              FileManager.default.isExecutableFile(atPath: core.path) else {
+            append("❌ 找不到內建的 core/run.sh（請用 build_app.sh 打包）")
+            state = .stopped; return
+        }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [core.path, script]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        env.merge(envProvider()) { _, new in new }
+        p.environment = env
+        let out = Pipe()
+        p.standardOutput = out; p.standardError = out
+        p.standardInput = FileHandle.nullDevice
+        out.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let d = h.availableData
+            if d.isEmpty { h.readabilityHandler = nil; return }
+            let me = self
+            Task { @MainActor in me?.ingest(d) }
+        }
+        p.terminationHandler = { [weak self] proc in
+            let me = self, code = proc.terminationStatus
+            Task { @MainActor in me?.exited(code) }
+        }
+        do {
+            try p.run()
+        } catch {
+            append("❌ 啟動失敗：\(error.localizedDescription)")
+            state = .stopped; return
+        }
+        process = p
+        lastStart = Date()
+        state = .running
+        append("▶️ 啟動 \(script)（pid \(p.processIdentifier)）")
+        if let limit = maxRuntime {
+            timeoutTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(limit * 1_000_000_000))
+                guard let self, !Task.isCancelled, self.isRunning else { return }
+                self.append("⏱️ 超過 \(Int(limit / 60)) 分鐘，強制結束")
+                self.process?.terminate()
+            }
+        }
+    }
+
+    private func exited(_ code: Int32) {
+        timeoutTask?.cancel()
+        let ranFor = Date().timeIntervalSince(lastStart ?? Date())
+        process = nil
+        isReady = false; isBusy = false
+        if !outBuf.isEmpty { flushLine(outBuf); outBuf.removeAll() }
+        append("⏹️ 結束（exit \(code)）")
+        guard wantRunning else { state = keepAlive ? .stopped : .finished(code); return }
+        guard keepAlive else { state = .finished(code); wantRunning = false; return }
+        failures = ranFor > 60 ? 0 : failures + 1
+        let delay = min(60, 1 << min(failures, 6))
+        state = .backoff(delay)
+        append("🔁 \(delay) 秒後自動重啟")
+        retryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+            guard let self, !Task.isCancelled, self.wantRunning else { return }
+            self.launch()
+        }
+    }
+
+    private func ingest(_ data: Data) {
+        outBuf.append(data)
+        while let nl = outBuf.firstIndex(of: 0x0A) {
+            flushLine(outBuf[outBuf.startIndex..<nl])
+            outBuf.removeSubrange(outBuf.startIndex...nl)
+        }
+    }
+
+    private func flushLine(_ d: Data) {
+        let s = String(decoding: d, as: UTF8.self).trimmingCharacters(in: .controlCharacters.subtracting(.init(charactersIn: "\t")))
+        guard !s.isEmpty else { return }
+        // 狀態標記只更新狀態，不放進日誌
+        if s == "[bot-state] busy" { isBusy = true; return }
+        if s == "[bot-state] idle" { isBusy = false; return }
+        if s.contains("Bot 已登入") { isReady = true }
+        append(s)
+    }
+
+    private func append(_ line: String) {
+        let limit = BotRunner.maxLines
+        if limit > 0 {
+            logs.append(line)
+            if logs.count > limit { logs.removeFirst(logs.count - limit) }
+        }
+        writeToFile(line)
+    }
+
+    private func writeToFile(_ line: String) {
+        guard BotRunner.diskLogging else {
+            // 剛被關掉：放掉檔案
+            if logHandle != nil { try? logHandle?.close(); logHandle = nil }
+            return
+        }
+        let fm = FileManager.default
+        if logHandle == nil {
+            try? fm.createDirectory(at: BotRunner.logDir, withIntermediateDirectories: true)
+            if !fm.fileExists(atPath: logFile.path) { fm.createFile(atPath: logFile.path, contents: nil) }
+            logHandle = try? FileHandle(forWritingTo: logFile)
+            logBytes = Int((try? logHandle?.seekToEnd()) ?? 0)
+        }
+        if logBytes > 5_000_000 {
+            try? logHandle?.close(); logHandle = nil
+            let old = logFile.deletingPathExtension().appendingPathExtension("1.log")
+            try? fm.removeItem(at: old); try? fm.moveItem(at: logFile, to: old)
+            fm.createFile(atPath: logFile.path, contents: nil)
+            logHandle = try? FileHandle(forWritingTo: logFile)
+            logBytes = 0
+        }
+        let data = Data("\(ISO8601DateFormatter().string(from: Date())) \(line)\n".utf8)
+        try? logHandle?.write(contentsOf: data)   // 持續開著、不每行 open/close
+        logBytes += data.count
+    }
+}
