@@ -148,7 +148,7 @@ def get_settings():
         "SHOW_ATTACHMENTS": False,       # 是否顯示附件網址
         "SIMPLIFY_LINKS": True,          # 連結簡化
         "GEMINI_TOKEN_LIMIT": 120000,    # Token 上限
-        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-flash-latest","gemini-flash-lite-latest","gemini-2.5-flash","gemma-4-31b-it"], # 模型列表
+        "GEMINI_MODEL_PRIORITY_LIST": ["gemini-4-hydrogen","gemini-3.8-flash","gemini-2.5-flash","gemini-3.5-flash-lite","gemma-4-31b-it"], # 模型列表
         # "GEMINI_MODEL_PRIORITY_LIST": ["gemma-4-31b-it"], #測試用
         "IGNORE_TOKEN": "-# 🤖",         # 截斷標記
         "BOT_NAME": "機器人",           # Bot 在對話歷史中的顯示名稱
@@ -704,7 +704,7 @@ async def run_ai_summary(client, settings, secrets):
                     if gemini_key:
                         print("   🤖 呼叫 Gemini 中...")
                         
-                        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-flash-latest"])
+                        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-4-hydrogen","gemini-3.8-flash","gemini-2.5-flash","gemini-3.5-flash-lite","gemma-4-31b-it"])
                         # 相容舊設定: 若只有 GEMINI_MODEL 則轉為 list
                         if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
                              param_model_list = [settings["GEMINI_MODEL"]]
@@ -1053,7 +1053,7 @@ async def run_daily_ai_summary(client, settings, secrets):
         
         print("   🤖 呼叫 Gemini 進行整日總結...")
         
-        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-flash-latest"])
+        param_model_list = settings.get("GEMINI_MODEL_PRIORITY_LIST", ["gemini-4-hydrogen","gemini-3.8-flash","gemini-2.5-flash","gemini-3.5-flash-lite","gemma-4-31b-it"])
         if "GEMINI_MODEL" in settings and "GEMINI_MODEL_PRIORITY_LIST" not in settings:
             param_model_list = [settings["GEMINI_MODEL"]]
         

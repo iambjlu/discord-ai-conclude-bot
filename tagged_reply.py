@@ -130,10 +130,10 @@ def get_settings():
 
 以下是近期對話歷史（僅供背景參考）：
 {context_str}""",
-        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it","gemini-flash-lite-latest"],
+        "MODEL_PRIORITY_LIST": ["gemma-4-31b-it","gemini-3.5-flash-lite"],
         "DEFAULT_TOKEN_LIMIT": 120000,
         "SMARTER_MODE_KEYWORD": "/聰明模型", 
-        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash"],
+        "SMARTER_MODEL_PRIORITY_LIST": ["gemini-2.5-flash","gemini-3.5-flash-lite"],
         "SMARTER_TOKEN_LIMIT": 120000,
         "SMARTER_TOTAL_MSG_LIMIT": 150,
         "SMARTER_MAX_MSG_LENGTH": 150,
@@ -219,7 +219,7 @@ class TaggedResponseBot(discord.Client):
         if not (self.secrets.get('LOCAL_AI_SERVER') and self.secrets.get('LOCAL_AI_MODEL')):
             print("ℹ️ 本地模型未啟用（已停用或未設定）")
 
-        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"])
+        self.model_priority_list = self.settings.get("MODEL_PRIORITY_LIST", ["gemma-4-31b-it","gemini-3.5-flash-lite"])
         self.ignore_after_token = self.settings.get("IGNORE_TOKEN", "-# 🤖")
 
         # 本地模型圖片支援設定：secrets 可覆蓋 settings 的預設值
@@ -624,11 +624,11 @@ class TaggedResponseBot(discord.Client):
                             model_name = self.secrets.get('LOCAL_AI_MODEL', 'unknown-local-model')
                             use_local = True
                         elif is_smarter_mode:
-                            image_model_list = list(self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash"]))
+                            image_model_list = list(self.settings.get("SMARTER_MODEL_PRIORITY_LIST", ["gemini-2.5-flash","gemini-3.5-flash-lite"]))
                             model_name = image_model_list[0]
                             use_local = False
                         else:
-                            image_model_list = list(self.settings.get("MODEL_PRIORITY_LIST", ["gemini-flash-lite-latest","gemma-4-31b-it"]))
+                            image_model_list = list(self.settings.get("MODEL_PRIORITY_LIST", ["gemma-4-31b-it","gemini-3.5-flash-lite"]))
                             model_name = image_model_list[0]
                             use_local = False
 
