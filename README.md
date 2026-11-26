@@ -68,6 +68,11 @@ LOCAL_AI_SERVER=http://172.20.10.3:8000/v1
 LOCAL_AI_MODEL=Qwen3.6-35B-A3B-6bit
 LOCAL_AI_API_KEY=0000
 LOCAL_AI_IMAGE_SUPPORT=true
+
+# 覆蓋雲端模型清單 (可選，用逗號分隔、由左到右依序嘗試；未設定則使用程式內的預設值)
+SERVER_MODEL_LIST="gemini-4-hydrogen","gemini-3.8-flash","gemini-2.5-flash","gemini-3.5-flash-lite","gemma-4-31b-it"
+TAGGED_MODEL_LIST="gemma-4-31b-it","gemini-3.5-flash-lite"
+TAGGED_SMART_MODEL_LIST="gemini-2.5-flash","gemini-3.5-flash-lite"
 ```
 
 ---
@@ -154,7 +159,7 @@ LOCAL_AI_IMAGE_SUPPORT=true
 
 ### Google Gemini AI 設定
 *   **`GEMINI_TOKEN_LIMIT`**: AI 回應的最大 Token 數 (預設 `120000`)。
-*   **`GEMINI_MODEL_PRIORITY_LIST`**: 優先使用的模型列表，會依序嘗試直到成功。
+*   **`GEMINI_MODEL_PRIORITY_LIST`**: 優先使用的模型列表，會依序嘗試直到成功。可用 `.env` 的 `SERVER_MODEL_LIST` 覆蓋。
     *   範例: `["gemini-3.5-flash", "gemma-4-31b-it", "gemma-3-12b-it", ...]`
 *   **`IGNORE_TOKEN`**: 訊息截斷標記，若讀取到此符號，之後的內容會被忽略 (避免 Bot 讀到自己的摘要)。
 *   **`GEMINI_SUMMARY_FORMAT`**: 給 AI 的 Prompt 模板，定義摘要的 Markdown 格式。
